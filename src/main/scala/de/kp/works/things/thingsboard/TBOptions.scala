@@ -58,13 +58,13 @@ object TBOptions {
     /* Authentication
      *
      * Access to a certain ThingsBoard device requires
-     * the device token, that is used as password
+     * the device token, that is used as user name
      */
-    options.setPassword(deviceToken.toCharArray)
+    options.setUserName(deviceToken)
     /*
      * Connect with MQTT 3.1 or MQTT 3.1.1
      *
-     * Depending which MQTT broker you are using, you may want to explicitely
+     * Depending which MQTT broker you are using, you may want to explicitly
      * connect with a specific MQTT version.
      *
      * By default, Paho tries to connect with MQTT 3.1.1 and falls back to

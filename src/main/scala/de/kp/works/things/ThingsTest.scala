@@ -4,7 +4,7 @@ import de.kp.works.things.thingsboard.TBProducer
 
 object ThingsTest {
 
-  private val deviceToken:String = ""
+  private val deviceToken:String = "uR5JARqWA3aNkEsr7rpD"
 
   def main(args:Array[String]):Unit = {
 
