@@ -1,4 +1,4 @@
-package de.kp.works.things.thingsboard
+package de.kp.works.things.tb
 
 /*
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -21,6 +21,11 @@ package de.kp.works.things.thingsboard
 
 import org.eclipse.paho.client.mqttv3.{MqttClient, MqttException, MqttMessage}
 
+class DeviceProducer extends TBProducer {
+
+  setTBTopic(TBOptions.DEVICE_TELEMETRY_TOPIC)
+
+}
 /**
  * The [TBProducer] is responsible for writing MQTT
  * message that refer to a certain device to the
@@ -30,6 +35,20 @@ class TBProducer {
 
   private val mqttClient: Option[MqttClient] = buildMqttClient
   private var connected:Boolean = false
+
+  private var mqttTopic:Option[String] = None
+
+  private var verbose:Option[Boolean] = Some(true)
+
+  def setTBTopic(topic:String):TBProducer = {
+    this.mqttTopic = Some(topic)
+    this
+  }
+
+  def setVerbose(verbose:Boolean):TBProducer = {
+    this.verbose = Some(verbose)
+    this
+  }
 
   def buildMqttClient:Option[MqttClient] = {
 
@@ -43,6 +62,12 @@ class TBProducer {
 
   }
 
+  def isConnected:Boolean = connected
+
+  /**
+   * The `deviceToken` is either a registered ThingsBoard
+   * `device` or a `gateway` token.
+   */
   def start(deviceToken:String):Unit = {
 
     if (mqttClient.isEmpty) buildMqttClient
@@ -52,8 +77,10 @@ class TBProducer {
 
     connected = mqttClient.get.isConnected
 
-    val now = new java.util.Date()
-    println(s"[INFO] $now.toString - Mqtt Producer is connected to ThingsBoard.")
+    if (verbose.get) {
+      val now = new java.util.Date()
+      println(s"[INFO] $now.toString - TB Producer is connected to ThingsBoard.")
+    }
 
   }
 
@@ -62,27 +89,39 @@ class TBProducer {
     if (mqttClient.isEmpty) return
     mqttClient.get.disconnect()
 
-    val now = new java.util.Date()
-    println(s"[INFO] $now.toString - Mqtt Producer is disconnected from ThingsBoard.")
+    if (verbose.get) {
+      val now = new java.util.Date()
+      println(s"[INFO] $now.toString - TB Producer is disconnected from ThingsBoard.")
+    }
 
   }
 
-  def publish(content:String):Unit = {
+  /**
+   * This is the basic method to send a certain
+   * MQTT message in a ThingsBoard compliant
+   * format to the server
+   */
+  def publish(mqttPayload:String):Unit = {
 
     if (mqttClient.isEmpty || !connected) {
 
       val now = new java.util.Date()
-      throw new Exception(s"[INFO] $now.toString - Mqtt Producer is not connected to ThingsBoard.")
+      throw new Exception(s"[ERROR] $now.toString - TB Producer is not connected to ThingsBoard.")
 
     }
 
+    if (mqttTopic.isEmpty) {
+
+      val now = new java.util.Date()
+      throw new Exception(s"[ERROR] $now.toString - No Mqtt topic configured for TB Producer.")
+
+    }
     try {
 
-      val mqttMessage = new MqttMessage(content.getBytes("UTF-8"))
+      val mqttMessage = new MqttMessage(mqttPayload.getBytes("UTF-8"))
       mqttMessage.setQos(TBOptions.getQos)
 
-      val mqttTopic = TBOptions.getMqttTopic
-      mqttClient.get.publish(mqttTopic, mqttMessage)
+      mqttClient.get.publish(mqttTopic.get, mqttMessage)
 
     } catch {
       case t:MqttException =>
@@ -93,7 +132,7 @@ class TBProducer {
         val message = t.getMessage
         val now = new java.util.Date()
 
-        throw new Exception(s"[INFO] $now.toString - Mqtt publishing failed: Reason=$reasonCode, Cause=$cause, Message=$message")
+        throw new Exception(s"[ERROR] $now.toString - Mqtt publishing failed: Reason=$reasonCode, Cause=$cause, Message=$message")
 
     }
 

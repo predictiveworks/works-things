@@ -1,9 +1,9 @@
 package de.kp.works.things
 
 import com.google.gson.JsonObject
-import de.kp.works.things.thingsboard.TBProducer
+import de.kp.works.things.tb.{TBOptions, TBProducer}
 
-object ThingsTest {
+object TBTest {
 
   private val deviceToken:String = "jKAAaVjfshCfm097OKVe"
 
@@ -27,6 +27,8 @@ object ThingsTest {
     println("# ------------------------------")
 
     val producer = new TBProducer()
+      .setTBTopic(TBOptions.DEVICE_TELEMETRY_TOPIC)
+
     try {
 
       producer.start(deviceToken)
@@ -61,6 +63,7 @@ object ThingsTest {
         message.add("values", values)
 
         producer.publish(message.toString)
+
         Thread.sleep(50)
 
       })

@@ -65,25 +65,28 @@ object ThingsConf {
     cfg.isDefined
   }
 
-  def getBindingCfg: Config = {
+  def getActorCfg: Config = getCfg("actor")
+
+  def getBindingCfg: Config = getCfg("binding")
+
+  def getClimateCfg: Config = getCfg("climate")
+
+  def getSecurityCfg: Config = getCfg("security")
+
+  def getTBCfg: Config = getCfg("thingsboard")
+
+  def getTTNCfg: Config = getCfg("thingsnetwork")
+
+  def getWeatherCfg: Config = getCfg("weather")
+
+  def getCfg(name:String): Config = {
 
     val now = new java.util.Date().toString
 
     if (cfg.isEmpty)
       throw new Exception(s"[ERROR] $now - Configuration not initialized.")
 
-    cfg.get.getConfig("binding")
-
-  }
-
-  def getThingsCfg: Config = {
-
-    val now = new java.util.Date().toString
-
-    if (cfg.isEmpty)
-      throw new Exception(s"[ERROR] $now - Configuration not initialized.")
-
-    cfg.get.getConfig("thingsboard")
+    cfg.get.getConfig(name)
 
   }
 
