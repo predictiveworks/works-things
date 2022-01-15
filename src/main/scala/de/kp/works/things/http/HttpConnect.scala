@@ -1,6 +1,6 @@
 package de.kp.works.things.http
 
-/*
+/**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -117,19 +117,8 @@ trait HttpConnect {
      * Await result
      */
     val result = Await.result(future, timeout.duration).asInstanceOf[Seq[String]]
-    /*
-     * __MOD__
-     *
-     * Result processing depends on the respective content
-     */
-    val lines = result.flatMap(line => {
-      /*
-       * Check whether the respective line contains line
-       * breaks; in this case, split the lines
-       */
-      line.split("\\n")
-    })
 
+    val lines = result.mkString.split("\\n")
     lines.toList
 
   }

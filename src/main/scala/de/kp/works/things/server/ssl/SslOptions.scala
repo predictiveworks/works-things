@@ -1,6 +1,6 @@
 package de.kp.works.things.server.ssl
 
-/*
+/**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -274,36 +274,36 @@ object SslOptions {
 
 class SslOptions(
 
-                  val tlsVersion: String = "TLS",
+  val tlsVersion: String = "TLS",
 
-                  /* KEY STORE */
-                  val keystoreFile: Option[String] = None,
-                  val keystoreType: Option[String] = None,
-                  val keystorePass: Option[String] = None,
-                  val keystoreAlgo: Option[String] = None,
+  /* KEY STORE */
+  val keystoreFile: Option[String] = None,
+  val keystoreType: Option[String] = None,
+  val keystorePass: Option[String] = None,
+  val keystoreAlgo: Option[String] = None,
 
-                  /* TRUST STORE */
+  /* TRUST STORE */
 
-                  val truststoreFile: Option[String] = None,
-                  val truststoreType: Option[String] = None,
-                  val truststorePass: Option[String] = None,
-                  val truststoreAlgo: Option[String] = None,
+  val truststoreFile: Option[String] = None,
+  val truststoreType: Option[String] = None,
+  val truststorePass: Option[String] = None,
+  val truststoreAlgo: Option[String] = None,
 
-                  /* CERTIFICATES */
+  /* CERTIFICATES */
 
-                  val caCert: Option[X509Certificate] = None,
-                  val cert: Option[X509Certificate] = None,
-                  val privateKey: Option[PrivateKey] = None,
-                  val privateKeyPass: Option[String] = None,
+  val caCert: Option[X509Certificate] = None,
+  val cert: Option[X509Certificate] = None,
+  val privateKey: Option[PrivateKey] = None,
+  val privateKeyPass: Option[String] = None,
 
-                  /* CERTIFICATES FILES */
+  /* CERTIFICATES FILES */
 
-                  val caCertFile: Option[String] = None,
-                  val certFile: Option[String] = None,
-                  val privateKeyFile: Option[String] = None,
-                  val privateKeyFilePass: Option[String] = None,
+  val caCertFile: Option[String] = None,
+  val certFile: Option[String] = None,
+  val privateKeyFile: Option[String] = None,
+  val privateKeyFilePass: Option[String] = None,
 
-                  val cipherSuites: Option[Array[String]] = None) {
+  val cipherSuites: Option[Array[String]] = None) {
 
   def getCipherSuites: List[String] = {
 

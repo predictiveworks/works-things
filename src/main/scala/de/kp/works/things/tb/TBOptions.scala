@@ -1,6 +1,6 @@
 package de.kp.works.things.tb
 
-/*
+/**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -19,6 +19,7 @@ package de.kp.works.things.tb
  *
  */
 
+import com.typesafe.config.Config
 import de.kp.works.things.ThingsConf
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
@@ -124,6 +125,8 @@ object TBOptions {
   if (!ThingsConf.isInit) ThingsConf.init()
 
   private val thingsCfg = ThingsConf.getTBCfg
+
+  def getAdminCfg:Config = thingsCfg.getConfig("admin")
 
   def getBrokerUrl:String = thingsCfg.getString("mqttUrl")
 
