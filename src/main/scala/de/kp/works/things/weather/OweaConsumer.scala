@@ -27,14 +27,14 @@ import de.kp.works.things.tb.DeviceProducer
 
 import scala.collection.mutable
 
-object WeatherConsumer {
+object OweaConsumer {
 
-  private var instance:Option[WeatherConsumer] = None
+  private var instance:Option[OweaConsumer] = None
 
-  def getInstance():WeatherConsumer = {
+  def getInstance():OweaConsumer = {
 
     if (instance.isEmpty)
-      instance = Some(new WeatherConsumer)
+      instance = Some(new OweaConsumer)
 
     instance.get
 
@@ -53,13 +53,13 @@ object WeatherConsumer {
  * as an independent devices and therefore leverages the
  * ThingsBoard Device API to publish weather data.
  */
-class WeatherConsumer extends HttpConnect with JsonUtil {
+class OweaConsumer extends HttpConnect with JsonUtil {
 
-  private val apiUrl = WeatherOptions.getBaseUrl
-  private val apiKey = WeatherOptions.getApiKey
+  private val apiUrl = OweaOptions.getBaseUrl
+  private val apiKey = OweaOptions.getApiKey
 
-  private val interval = WeatherOptions.getTimeInterval
-  private val locations = WeatherOptions.getLocations
+  private val interval = OweaOptions.getTimeInterval
+  private val stations = OweaOptions.getStations
   /*
    * Every weather station is handled as an individual device
    * and has its own device producer assigned
@@ -114,51 +114,39 @@ class WeatherConsumer extends HttpConnect with JsonUtil {
      * Move through all configured weather stations and
      * retrieve the corresponding weather data
      */
-    val size = locations.size
-    for (i <- 0 until size) {
+    stations.foreach(station => {
+      // TODO
+      val token:String = null
       /*
-       * Unpack the configured weather station
+       * Check whether a token (device) specific
+       * producer is started
        */
-      val cval = locations.get(i)
-      cval match {
-        case configObject: ConfigObject =>
+      if (!producers.contains(token)) {
+        try {
+          val producer = new DeviceProducer
+          producer.start(token)
 
-          val location = configObject.toConfig
-          val token = location.getString("token")
-          /*
-           * Check whether a token (device) specific
-           * producer is started
-           */
-          if (!producers.contains(token)) {
-            try {
-              val producer = new DeviceProducer
-              producer.start(token)
+          if (producer.isConnected)
+            producers += token -> producer
 
-              if (producer.isConnected)
-                producers += token -> producer
+          else
+            throw new Exception(s"Assigning TB Producer to token `$token` failed.")
 
-              else
-                throw new Exception(s"Assigning TB Producer to token `$token` failed.")
-
-            } catch {
-              case t:Throwable =>
-                val now = new java.util.Date()
-                println(s"[WARN] $now.toString - ${t.getLocalizedMessage}")
-            }
-          }
-
-          extractLocation(location)
-          Thread.sleep(sleep)
-
-        case _ =>
-          val now = new java.util.Date()
-          throw new Exception(s"[ERROR] $now.toString - Locations are not configured properly.")
+        } catch {
+          case t:Throwable =>
+            val now = new java.util.Date()
+            println(s"[WARN] $now.toString - ${t.getLocalizedMessage}")
+        }
       }
 
-    }
+      //extractLocation(location)
+      Thread.sleep(sleep)
+
+    })
 
   }
 
+  // TODO
   def extractLocation(location:Config):Unit = {
     /*
      * Retrieve the weather data for the geo spatial

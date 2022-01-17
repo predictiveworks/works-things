@@ -1,4 +1,4 @@
-package de.kp.works.things.airq
+package de.kp.works.things.weather
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -25,35 +25,21 @@ import de.kp.works.things.tb.{TBAdmin, TBOptions}
 import org.thingsboard.server.common.data.Device
 import org.thingsboard.server.common.data.id.CustomerId
 
-object AirQManager {
+case class OweaStation(id:String, name:String, lon:Double, lat:Double)
 
-  def main(args:Array[String]):Unit = {
-
-    val manager = new AirQManager
-    manager.createStationsIfNotExist()
-
-  }
-
-}
-/**
- * The [AirqManager] is responsible for creating a set
- * of pre-defined Air Quality stations; this is done as
- * part of the Things Server's pre-start functionality
- */
-class AirQManager {
+class OweaManager {
 
   private val repository = DeviceRepository.getInstance
 
   /*
-   * STEP #1: Retrieve all pre-defined Air Quality stations
+   * STEP #1: Retrieve all pre-defined weather stations
    * from the configuration file
    */
-  private val stations = AirqOptions.getStations
+  private val stations = OweaOptions.getStations
   /**
-   * This method leverages pre-defined Air Quality stations
+   * This method leverages pre-defined OpenWeather stations
    * (see configuration file) and creates them as ThingsBoard
-   * gateway devices with geo spatial coordinates as server
-   * attributes
+   * devices with geo spatial coordinates as server attributes
    */
   def createStationsIfNotExist():Unit = {
 
@@ -85,9 +71,9 @@ class AirQManager {
         val tbDevice = new Device()
 
         tbDevice.setName(station.id)
-        tbDevice.setType("Air Quality Station")
+        tbDevice.setType("Weather Station")
 
-        tbDevice.setLabel(s"AirQ Station: ${station.name}")
+        tbDevice.setLabel(s"Weather Station: ${station.name}")
 
         val tbCustomerId = new CustomerId(
           java.util.UUID.fromString(tbAdmin.getCustomerId))
@@ -97,7 +83,7 @@ class AirQManager {
          * Additional info: gateway, description
          */
         val additionalInfo = new JsonObject
-        additionalInfo.addProperty("gateway", true)
+        additionalInfo.addProperty("gateway", false)
         additionalInfo.addProperty("description", "")
 
         val node = tbAdmin.getMapper.readTree(additionalInfo.toString)
@@ -113,9 +99,10 @@ class AirQManager {
 
         Thread.sleep(50)
         /*
-         * Create device server attributes
+         * Build server attributes
          */
         val tbAttributes = new JsonObject
+
         tbAttributes.addProperty("latitude",  station.lat)
         tbAttributes.addProperty("longitude", station.lon)
         /* ------------------------------
@@ -138,25 +125,26 @@ class AirQManager {
          * Server
          */
         val deviceEntry = DeviceEntry(
-          datasource = "airq",
+          datasource = "owea",
           tbDeviceId = tbDeviceId,
           tbDeviceToken = tbDeviceToken,
-          tbMqttTopic = TBOptions.GATEWAY_TELEMETRY_TOPIC
+          tbMqttTopic = TBOptions.DEVICE_TELEMETRY_TOPIC
         )
 
         repository.register(deviceEntry)
 
         val now = new java.util.Date
-        println(s"[INFO] - $now.toString - AirQ station `${station.name}` successfully created.")
-
+        println(s"[INFO] - $now.toString - Weather Station `${station.name}` successfully created.")
 
       } catch {
         case t:Throwable =>
           val now = new java.util.Date
           println(
-            s"[ERROR] - $now.toString - Creating Airq station `${station.name}` failed: ${t.getLocalizedMessage}")
+            s"[ERROR] - $now.toString - Creating weather station `${station.name}` failed: ${t.getLocalizedMessage}")
       }
 
     })
-   }
+
+  }
+
 }

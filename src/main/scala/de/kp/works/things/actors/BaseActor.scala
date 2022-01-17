@@ -25,6 +25,8 @@ import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.headers.HttpEncodings
 import akka.stream.ActorMaterializer
 import akka.util.{ByteString, Timeout}
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.google.gson._
 import com.typesafe.config.Config
 import de.kp.works.things.ThingsConf
@@ -34,6 +36,9 @@ import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.Try
 
 abstract class BaseActor extends Actor with ActorLogging {
+
+  protected val mapper = new ObjectMapper()
+  mapper.registerModule(DefaultScalaModule)
 
   import BaseActor._
   /**

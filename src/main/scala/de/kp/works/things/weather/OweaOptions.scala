@@ -19,10 +19,12 @@ package de.kp.works.things.weather
  *
  */
 
-import com.typesafe.config.ConfigList
+import com.typesafe.config.ConfigObject
 import de.kp.works.things.ThingsConf
 
-object WeatherOptions {
+import scala.collection.JavaConversions._
+
+object OweaOptions {
 
   /**
    * The internal configuration is used, if the current
@@ -36,7 +38,27 @@ object WeatherOptions {
 
   def getBaseUrl:String = weatherCfg.getString("serverUrl")
 
-  def getLocations:ConfigList = weatherCfg.getList("locations")
+  def getStations:List[OweaStation] = {
+
+    val values = weatherCfg.getList("stations")
+    values.map {
+      case configObject: ConfigObject =>
+
+        val station = configObject.toConfig
+        OweaStation(
+          id = station.getString("id"),
+          name = station.getString("name"),
+          lon = station.getDouble("lon"),
+          lat = station.getDouble("lat")
+        )
+
+      case _ =>
+        val now = new java.util.Date()
+        throw new Exception(s"[ERROR] $now.toString - Stations are not configured properly.")
+    }
+      .toList
+
+  }
 
   def getTimeInterval:Long = {
 

@@ -19,6 +19,7 @@ package de.kp.works.things.ttn
  *
  */
 
+import com.typesafe.config.Config
 import de.kp.works.things.ThingsConf
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
@@ -32,6 +33,10 @@ object TTNOptions {
   if (!ThingsConf.isInit) ThingsConf.init()
 
   private val thingsCfg = ThingsConf.getTTNCfg
+
+  def getAdminCfg:Config = thingsCfg.getConfig("admin")
+
+  def getAuthToken:String = thingsCfg.getString("mqttPass")
 
   def getBrokerUrl:String = thingsCfg.getString("mqttUrl")
 

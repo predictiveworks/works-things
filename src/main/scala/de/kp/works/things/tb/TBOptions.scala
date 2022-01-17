@@ -132,6 +132,8 @@ object TBOptions {
 
   def getClientId:String = thingsCfg.getString("clientId")
 
+  def getMobileCfg:Config = thingsCfg.getConfig("mobile")
+
   def getMqttOptions(deviceToken:String):MqttConnectOptions = {
     /*
      * The MQTT connection is configured to

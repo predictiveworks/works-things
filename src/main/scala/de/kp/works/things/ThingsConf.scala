@@ -71,6 +71,8 @@ object ThingsConf {
 
   def getClimateCfg: Config = getCfg("climate")
 
+  def getRepositoryCfg: Config = getCfg("repository")
+
   def getSecurityCfg: Config = getCfg("security")
 
   def getTBCfg: Config = getCfg("thingsboard")

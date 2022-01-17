@@ -1,4 +1,4 @@
-package de.kp.works.things.tb.admin
+package de.kp.works.things.tb
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -20,60 +20,41 @@ package de.kp.works.things.tb.admin
  */
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.google.gson.JsonObject
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.google.gson.{JsonElement, JsonObject}
+import com.typesafe.config.Config
 import de.kp.works.things.http.HttpConnect
-import de.kp.works.things.tb.TBOptions
 import org.thingsboard.server.common.data.Device
 
-import scala.collection.JavaConversions.iterableAsScalaIterable
+import scala.collection.JavaConversions._
 
-class ThingsAdmin extends HttpConnect {
+trait TBClient extends HttpConnect {
 
-  private val adminCfg = TBOptions.getAdminCfg
-  private val baseUrl = adminCfg.getString("serverUrl")
+  protected val mapper = new ObjectMapper()
+  mapper.registerModule(DefaultScalaModule)
 
-  private val deviceUrl = "/api/device"
-  private val devicesUrl = "/api/tenant/devices?page=0&pageSize=1000"
+  protected val adminCfg: Config = TBOptions.getAdminCfg
+  protected val mobileCfg: Config = TBOptions.getMobileCfg
 
-  private val attributesUrl = "/api/plugins/telemetry/DEVICE/"
+  protected val baseUrl: String = adminCfg.getString("serverUrl")
 
-  private val loginUrl = "/api/auth/login"
+  protected val username: String = adminCfg.getString("username")
+  protected val userpass: String = adminCfg.getString("userpass")
 
-  private val username = adminCfg.getString("username")
-  private val userpass = adminCfg.getString("userpass")
-
-  private val customerId = adminCfg.getString("customerId")
+  protected val loginUrl = "/api/auth/login"
+  /*
+   * The current implementation expects that the number
+   * of managed devices is less than or equal to 1000
+   */
+  protected val devicesUrl = "/api/tenant/devices?page=0&pageSize=1000"
 
   protected var authToken:Option[String] = None
   protected var refreshToken:Option[String] = None
 
-  protected val mapper = new ObjectMapper()
+  def extractDeviceId(response:JsonElement):String = {
 
-  def getCustomerId: String = customerId
-
-  def getMapper:ObjectMapper = mapper
-
-  def createDevice(device:Device):Unit = {
-
-    if (authToken.isEmpty) {
-      val now = new java.util.Date()
-      throw new Exception(
-        s"[ERROR] $now.toString - No access token found to access ThingsBoard.")
-    }
-
-    val endpoint = baseUrl + deviceUrl
-    val header = Map("X-Authorization"-> s"Bearer ${authToken.get}")
-
-    post(endpoint, header, mapper.writeValueAsString(device))
-
-  }
-
-  def createServerAttributes(deviceId:String, payload:String):Unit = {
-
-    val endpoint = baseUrl + attributesUrl + s"$deviceId/SERVER_SCOPE"
-    val header = Map("X-Authorization"-> s"Bearer ${authToken.get}")
-
-    post(endpoint, header, payload)
+    val idObj = response.getAsJsonObject.get("id").getAsJsonObject
+    idObj.get("id").getAsString
 
   }
 
@@ -97,16 +78,11 @@ class ThingsAdmin extends HttpConnect {
       mapper.readValue(device.toString, classOf[Device])).toSeq
 
   }
-  /**
-   * Send a POST request with
-   *
-   * {
-   *  "username":"tenant@thingsboard.org",
-   *  "password":"tenant"
-   * }
-   *
-   * body to retrieve the JWT token for subsequent requests
-   */
+
+  def getMapper:ObjectMapper = mapper
+
+  def getSecret:String = mobileCfg.getString("secret")
+
   def login():Unit = {
 
     val endpoint = baseUrl + loginUrl
