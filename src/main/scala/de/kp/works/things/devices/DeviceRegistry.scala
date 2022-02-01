@@ -19,8 +19,6 @@ package de.kp.works.things.devices
  *
  */
 
-import de.kp.works.things.tb.TBAdmin
-
 import java.io.FileWriter
 import scala.collection.mutable
 
@@ -41,6 +39,12 @@ case class DeviceEntry(
    * to access device specific information
    */
   tbDeviceId:String,
+  /*
+   * The ThingsBoard device name is a unique name per
+   * tenant that is used to organize and retrieve device
+   * specific access parameters
+   */
+  tbDeviceName:String,
   /*
    * The ThingsBoard device token is user as user
    * name to publish telemetry data to ThingsBoard
@@ -68,6 +72,7 @@ case class DeviceEntry(
     val values = Seq(
       datasource,
       tbDeviceId,
+      tbDeviceName,
       tbDeviceToken,
       tbMqttTopic,
       ttnDeviceId,
@@ -79,33 +84,30 @@ case class DeviceEntry(
   }
 }
 
-object DeviceRepository {
+object DeviceRegistry {
 
-  private var instance:Option[DeviceRepository] = None
+  private var instance:Option[DeviceRegistry] = None
 
-  def getInstance:DeviceRepository = {
+  def getInstance:DeviceRegistry = {
 
-    if (instance.isEmpty) instance = Some(new DeviceRepository())
+    if (instance.isEmpty) instance = Some(new DeviceRegistry())
     instance.get
 
   }
 }
 
 
-class DeviceRepository extends TBAdmin {
+class DeviceRegistry {
 
   private val folder = RepositoryOptions.getFolder
-  private val repository = mutable.HashMap.empty[String, DeviceEntry]
-
-  load()
-
+  private val registry = mutable.HashMap.empty[String, DeviceEntry]
   /**
    * This methods loads all available device mapping
    * into the internal repository
    */
   def load():Unit = {
 
-    repository.clear()
+    registry.clear()
 
     val filePath = folder + "devices.csv"
     val source = scala.io.Source
@@ -117,6 +119,7 @@ class DeviceRepository extends TBAdmin {
       val Array(
         datasource,
         tbDeviceId,
+        tbDeviceName,
         tbDeviceToken,
         tbMqttTopic,
         ttnDeviceId,
@@ -126,23 +129,48 @@ class DeviceRepository extends TBAdmin {
       val deviceEntry = DeviceEntry(
         datasource,
         tbDeviceId,
+        tbDeviceName,
         tbDeviceToken,
         tbMqttTopic,
         ttnDeviceId,
         ttnMqttTopic
       )
 
-      repository += deviceEntry.tbDeviceId -> deviceEntry
+      registry += deviceEntry.tbDeviceName -> deviceEntry
 
     })
 
     source.close
 
   }
+  /**
+   * This method retrieves all device entries that
+   * refer a certain datasource; supported values
+   * are `airq`, `owea` and `prod`.
+   */
+  def getBySource(datasource:String):Seq[DeviceEntry] = {
 
+    val deviceEntries = registry
+      .map{case(_, deviceEntry) => deviceEntry}
+      .filter(deviceEntry => deviceEntry.datasource == datasource)
+
+    deviceEntries.toSeq
+
+  }
+  /**
+   * Retrieve a certain registered device by its
+   * ThingsBoard device name
+   */
+  def get(deviceName:String):Option[DeviceEntry] =
+    registry.get(deviceName)
+  /**
+   * The device specific access parameters are
+   * organized by the device name as this parameter
+   * is externally known and can derived with ease
+   */
   def register(entry:DeviceEntry):Unit = {
 
-    repository += entry.tbDeviceId -> entry
+    registry += entry.tbDeviceName -> entry
     /*
      * Append repository entry to repository file;
      * note, the registry process runs sequentially.
@@ -153,7 +181,9 @@ class DeviceRepository extends TBAdmin {
     val filePath = folder + "devices.csv"
     val writer = new FileWriter(filePath, true)
 
-    writer.write(entry.toString)
+    val line = entry.toString + "\n"
+
+    writer.write(line)
     writer.close()
 
   }

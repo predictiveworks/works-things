@@ -24,11 +24,14 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.google.gson.{JsonElement, JsonObject}
 import com.typesafe.config.Config
 import de.kp.works.things.http.HttpConnect
+import de.kp.works.things.logging.Logging
 import org.thingsboard.server.common.data.Device
+import org.thingsboard.server.common.data.asset.Asset
+import org.thingsboard.server.common.data.relation.EntityRelation
 
 import scala.collection.JavaConversions._
 
-trait TBClient extends HttpConnect {
+trait TBClient extends HttpConnect with Logging {
 
   protected val mapper = new ObjectMapper()
   mapper.registerModule(DefaultScalaModule)
@@ -42,28 +45,52 @@ trait TBClient extends HttpConnect {
   protected val userpass: String = adminCfg.getString("userpass")
 
   protected val loginUrl = "/api/auth/login"
+  protected val logoutUrl = "/api/auth/logout"
+  /*
+   * The current implementation expects that the number
+   * of managed assets is less than or equal to 1000
+   */
+  protected val assetsUrl = "/api/tenant/assets?page=0&pageSize=1000"
   /*
    * The current implementation expects that the number
    * of managed devices is less than or equal to 1000
    */
   protected val devicesUrl = "/api/tenant/devices?page=0&pageSize=1000"
+  protected val relationsUrl = "/api/relations"
 
   protected var authToken:Option[String] = None
   protected var refreshToken:Option[String] = None
 
-  def extractDeviceId(response:JsonElement):String = {
+  def extractEntityId(response:JsonElement):String = {
 
     val idObj = response.getAsJsonObject.get("id").getAsJsonObject
     idObj.get("id").getAsString
 
   }
 
+  def getAssets:Seq[Asset] = {
+
+    if (authToken.isEmpty) {
+      throw new Exception(s"No access token found to access ThingsBoard.")
+    }
+
+    val endpoint = baseUrl + assetsUrl
+    val header = Map("X-Authorization"-> s"Bearer ${authToken.get}")
+
+    val bytes = get(endpoint, header)
+    val json = extractJsonBody(bytes)
+
+    val assets = json.getAsJsonObject.get("data").getAsJsonArray
+
+    assets.map(asset =>
+      mapper.readValue(asset.toString, classOf[Asset])).toSeq
+
+  }
+
   def getDevices:Seq[Device] = {
 
     if (authToken.isEmpty) {
-      val now = new java.util.Date()
-      throw new Exception(
-        s"[ERROR] $now.toString - No access token found to access ThingsBoard.")
+      throw new Exception(s"No access token found to access ThingsBoard.")
     }
 
     val endpoint = baseUrl + devicesUrl
@@ -79,32 +106,97 @@ trait TBClient extends HttpConnect {
 
   }
 
+  def getRelations(entityId:String, entityType:String = "ASSET",
+                   direction:String = "FROM", relationType:String="Contains"):Seq[EntityRelation] = {
+
+    if (authToken.isEmpty) {
+      throw new Exception(s"No access token found to access ThingsBoard.")
+    }
+
+    val endpoint = baseUrl + relationsUrl
+    val header = Map("X-Authorization"-> s"Bearer ${authToken.get}")
+    /*
+     * The minimum request body retrieves all relations
+     * of a certain relation type
+     */
+    val body = Map(
+      "filters" -> List(Map("relationType" -> relationType)),
+      "parameters" -> Map(
+        "rootId"    -> entityId,
+        "rootType"  -> entityType,
+        "direction" -> direction
+      )
+    )
+
+    val bytes = post(endpoint, header, mapper.writeValueAsString(body))
+    val json = extractJsonBody(bytes)
+
+    val relations = json.getAsJsonArray
+    relations.map(relation =>
+      mapper.readValue(relation.toString, classOf[EntityRelation])).toSeq
+
+  }
+
   def getMapper:ObjectMapper = mapper
 
   def getSecret:String = mobileCfg.getString("secret")
 
-  def login():Unit = {
+  /**
+   * This method is made fault resilient as it must
+   * be used outside try-catch clauses
+   */
+  def login():Boolean = {
 
-    val endpoint = baseUrl + loginUrl
-    val header = Map.empty[String,String]
+    var success = true
+    if (authToken.isDefined) return success
+
+    try {
+
+      val endpoint = baseUrl + loginUrl
+      val header = Map.empty[String,String]
+      /*
+       * Build body from credentials
+       */
+      val body = new JsonObject()
+      body.addProperty("username", username)
+      body.addProperty("password", userpass)
+
+      val bytes = post(endpoint, header, body.toString)
+      /*
+       * RESPONSE
+       *
+       * { "token":"$YOUR_JWT_TOKEN", "refreshToken":"$YOUR_JWT_REFRESH_TOKEN" }
+       */
+      val json = extractJsonBody(bytes).getAsJsonObject
+
+      authToken = Some(json.get("token").getAsString)
+      refreshToken = Some(json.get("refreshToken").getAsString)
+
+    } catch {
+      case _:Throwable =>
+        success = false
+    }
+
+    success
+
+  }
+
+  def logout():Unit = {
+
+    val endpoint = baseUrl + logoutUrl
+    val header = Map("X-Authorization"-> s"Bearer ${authToken.get}")
     /*
      * Build body from credentials
      */
     val body = new JsonObject()
-    body.addProperty("username", username)
-    body.addProperty("password", userpass)
-
     val bytes = post(endpoint, header, body.toString)
     /*
-     * RESPONSE
-     *
-     * { "token":"$YOUR_JWT_TOKEN", "refreshToken":"$YOUR_JWT_REFRESH_TOKEN" }
+     * The result should be null
      */
-    val json = extractJsonBody(bytes).getAsJsonObject
+    extractJsonBody(bytes)
 
-    authToken = Some(json.get("token").getAsString)
-    refreshToken = Some(json.get("refreshToken").getAsString)
+    authToken = None
+    refreshToken = None
 
   }
-
 }

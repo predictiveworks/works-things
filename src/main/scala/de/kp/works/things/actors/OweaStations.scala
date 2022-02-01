@@ -20,11 +20,9 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
-import de.kp.works.things.ttn.TTNAdmin
+import de.kp.works.things.owea.OweaOptions
 
-class TTNDevices extends BaseActor {
-
-  private val ttnAdmin = new TTNAdmin()
+class OweaStations extends BaseActor {
 
   /**
    * __fault__resilient
@@ -35,29 +33,26 @@ class TTNDevices extends BaseActor {
     if (json == null) {
 
       warn(Messages.invalidJson())
-      return buildEmptyDevices
+      return buildEmptyStations
 
     }
 
-    val req = mapper.readValue(json.toString, classOf[TTNDevicesReq])
+    val req = mapper.readValue(json.toString, classOf[OweaStationsReq])
 
     if (req.secret.isEmpty || req.secret != secret) {
 
       warn(Messages.unauthorizedReq())
-      return buildEmptyDevices
+      return buildEmptyStation
 
     }
+    /*
+     * This request retrieves the pre-defined weather stations
+     * (see configuration file)
+     */
+    val stations = OweaOptions.getStations
+    val result = mapper.writeValueAsString(stations)
 
-    try {
-
-      val ttnDevices = ttnAdmin.getDevices
-      mapper.writeValueAsString(ttnDevices)
-
-    } catch {
-      case t:Throwable =>
-        error(Messages.failedDevicesReq(t))
-        buildEmptyDevices
-    }
+    result
 
   }
 }

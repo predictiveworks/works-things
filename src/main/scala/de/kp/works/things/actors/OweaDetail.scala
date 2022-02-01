@@ -20,11 +20,10 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
-import de.kp.works.things.ttn.TTNAdmin
+import de.kp.works.things.mock.TsHistorical
+import de.kp.works.things.tb.TBAdmin
 
-class TTNDevices extends BaseActor {
-
-  private val ttnAdmin = new TTNAdmin()
+class OweaDetail extends BaseActor {
 
   /**
    * __fault__resilient
@@ -35,29 +34,50 @@ class TTNDevices extends BaseActor {
     if (json == null) {
 
       warn(Messages.invalidJson())
-      return buildEmptyDevices
+      return buildEmptyDetail
 
     }
 
-    val req = mapper.readValue(json.toString, classOf[TTNDevicesReq])
-
+    val req = mapper.readValue(json.toString, classOf[OweaDetailReq])
     if (req.secret.isEmpty || req.secret != secret) {
 
       warn(Messages.unauthorizedReq())
-      return buildEmptyDevices
+      return buildEmptyDetail
 
     }
 
     try {
+      /*
+       * This request retrieves the values of the
+       * last month
+       */
+      val tbAdmin = new TBAdmin()
+      if (!tbAdmin.login())
+        throw new Exception("Login to ThingsBoard failed.")
 
-      val ttnDevices = ttnAdmin.getDevices
-      mapper.writeValueAsString(ttnDevices)
+      val tbDeviceId = req.id
+      val tbKeys = Seq(req.sensor)
+      /*
+       * The timeseries contains all sensors (keys)
+       * that are assigned to the specific devices
+       */
+      val tbValues =
+        getDeviceTs(tbAdmin, tbDeviceId, tbKeys, req.sensor)
+      /*
+       * Requests to ThingsBoard are finished,
+       * so logout and prepare for next login
+       */
+      tbAdmin.logout()
+
+      val mockValues = TsHistorical.getData(req.sensor)
+      mapper.writeValueAsString(mockValues)
 
     } catch {
       case t:Throwable =>
-        error(Messages.failedDevicesReq(t))
-        buildEmptyDevices
+        error(Messages.failedDetailReq(t))
+        buildEmptyDetail
     }
 
   }
+
 }

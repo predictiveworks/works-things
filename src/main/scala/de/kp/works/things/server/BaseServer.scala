@@ -19,12 +19,28 @@ package de.kp.works.things.server
  *
  */
 
-trait BaseServer {
+import de.kp.works.things.logging.Logging
+
+trait BaseServer extends Logging {
 
   protected var programName:String
   protected var programDesc:String
-
+  /**
+   * The name of the external file that contains all
+   * configuration specific parameters for this Things
+   * server application
+   */
   protected var configFile:Option[String]
+  /**
+   * The name of the external file that contains all
+   * (client) attribute mappings between backend and
+   * frontend attribute names.
+   *
+   * Note: This is an important approach to harmonize
+   * frontend attribute names for different TTN device
+   * attributes.
+   */
+  protected var mappingsFile:Option[String]
 
   def main(args:Array[String]):Unit = {
 
@@ -34,11 +50,7 @@ trait BaseServer {
     } catch {
       case t: Throwable =>
 
-        println("[ERROR] ------------------------------------------------")
-        println(s"[ERROR] $programName cannot be started: " + t.getMessage)
-        println("[ERROR] ------------------------------------------------")
-
-        t.printStackTrace()
+        error(s"$programName cannot be started: " + t.getMessage)
         /*
          * Sleep for 10 seconds so that one may see error messages
          * in Yarn clusters where logs are not stored.
@@ -54,32 +66,54 @@ trait BaseServer {
 
   protected def start(args:Array[String], service:BaseService):Unit = {
 
-    val cfg = if (configFile.isEmpty) {
+    val line = s"------------------------------------------------"
+    info(line)
 
-      println("[INFO] ------------------------------------------------")
-      println(s"[INFO] Launch $programName with internal configuration.")
-      println("[INFO] ------------------------------------------------")
+    val cfg = loadCfgAsString
+    val mappings = loadMappingsAsString
 
+    service.start(cfg, mappings)
+
+    info(s"$programName service started.")
+    info(line)
+
+  }
+
+  private def loadCfgAsString:Option[String] = {
+
+    if (configFile.isEmpty) {
+      info(s"Launch $programName with internal configuration.")
       None
 
     } else {
-
-      println("[INFO] ------------------------------------------------")
-      println(s"[INFO] Launch $programName with external configuration.")
-      println("[INFO] ------------------------------------------------")
+      info(s"Launch $programName with external configuration.")
 
       val source = scala.io.Source.fromFile(new java.io.File(configFile.get))
       val config = source.getLines.mkString("\n")
 
       source.close
       Some(config)
+
     }
 
-    service.start(cfg)
+  }
 
-    println("[INFO] ------------------------------------------------")
-    println(s"[INFO] $programName service started.")
-    println("[INFO] ------------------------------------------------")
+  private def loadMappingsAsString:Option[String] = {
+
+    if (configFile.isEmpty) {
+      info(s"Launch $programName with internal mappings.")
+      None
+
+    } else {
+      info(s"Launch $programName with external mappings.")
+
+      val source = scala.io.Source.fromFile(new java.io.File(mappingsFile.get))
+      val mappings = source.getLines.mkString("\n")
+
+      source.close
+      Some(mappings)
+
+    }
 
   }
 }

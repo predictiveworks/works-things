@@ -44,6 +44,17 @@ object AirqOptions {
     values.toList
   }
 
+  def getPollutants(stationId:String):List[String] = {
+
+    val sensors = getStations
+      .filter(station => station.id == stationId)
+      .head
+      .sensors
+
+    sensors
+
+  }
+
   def getStations:List[AirqStation] = {
 
     val values = climateCfg.getList("stations")
@@ -52,17 +63,34 @@ object AirqOptions {
 
         val station = configObject.toConfig
         AirqStation(
-          id = station.getString("id"),
-          name = station.getString("name"),
-          lon = station.getDouble("lon"),
-          lat = station.getDouble("lat")
+          id      = station.getString("id"),
+          name    = station.getString("name"),
+          lon     = station.getDouble("lon"),
+          lat     = station.getDouble("lat"),
+          sensors = station.getStringList("sensors").toList
         )
 
-      case other =>
+      case _ =>
         val now = new java.util.Date()
         throw new Exception(s"[ERROR] $now.toString - Stations are not configured properly.")
     }
-      .toList
+    .toList
+
+  }
+
+  def getTimeInterval:Long = {
+
+    val interval = climateCfg.getString("interval")
+    interval match {
+      case "30m" =>
+        1000 * 60 * 30
+      case "1h" =>
+        1000 * 60 * 60
+      case _ =>
+        val now = new java.util.Date()
+        throw new Exception(s"[ERROR] $now.toString - The time interval `$interval` is not supported.")
+
+    }
 
   }
 

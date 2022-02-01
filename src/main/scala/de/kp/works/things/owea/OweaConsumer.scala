@@ -1,4 +1,4 @@
-package de.kp.works.things.weather
+package de.kp.works.things.owea
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -19,13 +19,14 @@ package de.kp.works.things.weather
  *
  */
 
+import akka.actor.{ActorSystem, Props}
+import akka.stream.ActorMaterializer
 import com.google.gson.{JsonElement, JsonObject}
-import com.typesafe.config.{Config, ConfigObject}
 import de.kp.works.things.http.HttpConnect
 import de.kp.works.things.json.JsonUtil
-import de.kp.works.things.tb.DeviceProducer
+import de.kp.works.things.tb._
 
-import scala.collection.mutable
+import scala.concurrent.ExecutionContextExecutor
 
 object OweaConsumer {
 
@@ -55,20 +56,27 @@ object OweaConsumer {
  */
 class OweaConsumer extends HttpConnect with JsonUtil {
 
+  private val uuid = java.util.UUID.randomUUID.toString
+  /**
+   * Akka 2.6 provides a default materializer out of the box, i.e., for Scala
+   * an implicit materializer is provided if there is an implicit ActorSystem
+   * available. This avoids leaking materializers and simplifies most stream
+   * use cases somewhat.
+   */
+  implicit val oweaSystem: ActorSystem = ActorSystem(s"owea-system-$uuid")
+  implicit lazy val oweaContext: ExecutionContextExecutor = oweaSystem.dispatcher
+
+  implicit val oweaMaterializer: ActorMaterializer = ActorMaterializer()
+
   private val apiUrl = OweaOptions.getBaseUrl
   private val apiKey = OweaOptions.getApiKey
 
   private val interval = OweaOptions.getTimeInterval
   private val stations = OweaOptions.getStations
-  /*
-   * Every weather station is handled as an individual device
-   * and has its own device producer assigned
-   */
-  private val producers = mutable.HashMap.empty[String, DeviceProducer]
   /**
    * A flag that determines whether this consumer is retrieving
-   * values for the [OpenWeather] API for the configured weather
-   * stations and their coordinates
+   * values from the [OpenWeather] API for the configured weather
+   * stations and their devices
    */
   private var consuming = true
   /**
@@ -87,12 +95,12 @@ class OweaConsumer extends HttpConnect with JsonUtil {
     while (consuming) {
 
       if (lastTs == 0L) {
-        extractLocations()
+        extractStations()
       }
       else {
 
         if (System.currentTimeMillis - lastTs < interval) {
-          extractLocations()
+          extractStations()
         }
 
       }
@@ -102,9 +110,10 @@ class OweaConsumer extends HttpConnect with JsonUtil {
 
   def stop():Unit = {
     consuming = false
+    oweaSystem.terminate()
   }
 
-  def extractLocations():Unit = {
+  private def extractStations():Unit = {
     /*
      * Register the timestamp in milliseconds, the weather
      * data are retrieved from the [OpenWeather] API
@@ -115,108 +124,82 @@ class OweaConsumer extends HttpConnect with JsonUtil {
      * retrieve the corresponding weather data
      */
     stations.foreach(station => {
-      // TODO
-      val token:String = null
       /*
-       * Check whether a token (device) specific
-       * producer is started
+       * Retrieve the weather data for the geo spatial
+       * coordinates of the provided location
        */
-      if (!producers.contains(token)) {
-        try {
-          val producer = new DeviceProducer
-          producer.start(token)
+      val lat = station.lat
+      val lon = station.lon
 
-          if (producer.isConnected)
-            producers += token -> producer
+      val weather = getByLatLon(lat, lon).getAsJsonObject
+      val deviceSpecs = List(
+        Map(
+          "prefix" -> "DEV.CLOU",
+          "attrs"  -> Seq("cloudiness")
+        ),
+        Map(
+          "prefix" -> "DEV.HUMD",
+          "attrs"  -> Seq("humidity")
+        ),
+        Map(
+          "prefix" -> "DEV.PRESS",
+          "attrs"  -> Seq("pressure")
+        ),
+        Map(
+          "prefix" -> "DEV.TEMP",
+          "attrs"  -> Seq("temp", "feels_like", "temp_min", "temp_max")
+        ),
+        Map(
+          "prefix" -> "DEV.VISB",
+          "attrs"  -> Seq("visibility")
+        ),
+        Map(
+          "prefix" -> "DEV.WIND",
+          "attrs"  -> Seq("wind_speed", "wind_deg", "wind_gust")
+        )
 
-          else
-            throw new Exception(s"Assigning TB Producer to token `$token` failed.")
+      )
 
-        } catch {
-          case t:Throwable =>
-            val now = new java.util.Date()
-            println(s"[WARN] $now.toString - ${t.getLocalizedMessage}")
-        }
-      }
+      deviceSpecs.foreach(deviceSpec =>
+        extractStation(station, deviceSpec, weather))
 
-      //extractLocation(location)
       Thread.sleep(sleep)
 
     })
 
   }
 
-  // TODO
-  def extractLocation(location:Config):Unit = {
+  def extractStation(station:OweaStation, deviceSpec:Map[String, Any], weather:JsonObject):Unit = {
     /*
-     * Retrieve the weather data for the geo spatial
-     * coordinates of the provided location
+     * Transform wind data into TBRecord
      */
-    val lat = location.getDouble("lat")
-    val lon = location.getDouble("lon")
+    val attrNames = deviceSpec("attrs").asInstanceOf[Seq[String]]
+    val tbColumns = attrNames.map(attrName => {
 
-    val weather = getByLatLon(lat, lon).getAsJsonObject
-    /*
-     * Send the weather data to the ThingsBoard
-     * server; this request is implemented as a
-     * device telemetry request. This implies that
-     * each weather station is updated with its
-     * own request.
-     *
-     * The format of the request:
-     *
-     * {
-     *  "ts": 1527863043000,
-     *  "values": {
-     *    "temperature": 42.2,
-     *    "humidity": 70,
-     *    ...
-     *  }
-     * }
-     */
-    val message = new JsonObject
-    /*
-     * Weather stations leverage their own timestamp
-     * and do not rely on the (received message) server
-     * timestamps
-     */
-    val timestamp = weather.get("timestamp").getAsLong
-    message.addProperty("ts", timestamp)
+      val attrVal = getDoubleWithScale(weather, attrName)
+      TBColumn(attrName, attrVal)
 
-    val values = new JsonObject
-    val fields = List(
-      "temp",
-      "feels_like",
-      "temp_min",
-      "temp_max",
-      "humidity",
-      "pressure",
-      "wind_speed",
-      "wind_deg",
-      "wind_gust",
-      "cloudiness",
-      "visibility")
-
-    fields.foreach(field => {
-      val double_val = getDoubleWithScale(weather, field)
-      values.addProperty(field, double_val)
     })
 
-    message.add("values", values)
+    val timestamp = weather.get("timestamp").getAsLong
+    val tbRecord = TBRecord(timestamp, tbColumns)
+
+    val tbTimeseries = TBTimeseries(Seq(tbRecord))
+
+    val prefix = deviceSpec("prefix").asInstanceOf[String]
+    val tbDeviceName = s"$prefix.${station.id.replace("STA", "")}}"
     /*
-     * Finally, send message in ThingsBoard device format
-     * to the server with device specific producer
+     * Build device specific actor and send TBJob
+     * to this actor to publish time series records.
+     *
+     * This actor is automatically destroyed after
+     * the provided TBJob is executed
      */
-    val token = location.getString("token")
-    if (producers.contains(token)) {
-      producers(token).publish(message.toString)
+    val tbDeviceActor = oweaSystem.actorOf(
+      Props(new TBProducer()), s"$tbDeviceName-actor")
 
-    }
-    else {
-      val now = new java.util.Date()
-      println(s"[WARN] $now.toString - TB Producer for token `$token` is not assigned.")
-
-    }
+    val tbJob = TBJob(tbDeviceName, tbTimeseries)
+    tbDeviceActor ! tbJob
 
   }
 

@@ -19,7 +19,7 @@ package de.kp.works.things.actors
  *
  */
 import akka.actor.SupervisorStrategy._
-import akka.actor.{Actor, ActorLogging, ActorSystem, OneForOneStrategy}
+import akka.actor.{Actor, ActorSystem, OneForOneStrategy}
 import akka.http.scaladsl.coding.{Gzip, NoCoding}
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.headers.HttpEncodings
@@ -30,15 +30,26 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.google.gson._
 import com.typesafe.config.Config
 import de.kp.works.things.ThingsConf
+import de.kp.works.things.devices.RelationRegistry
+import de.kp.works.things.logging.Logging
+import de.kp.works.things.tb.{TBAdmin, TBOptions, TBPoint}
+import org.thingsboard.server.common.data.Device
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.Try
 
-abstract class BaseActor extends Actor with ActorLogging {
+case class DeviceValue(name:String, value:Double)
+case class DeviceValues(device:String, values:Seq[DeviceValue])
+
+abstract class BaseActor extends Actor with Logging {
 
   protected val mapper = new ObjectMapper()
   mapper.registerModule(DefaultScalaModule)
+
+  protected val mobileCfg: Config = TBOptions.getMobileCfg
+  protected val secret: String = mobileCfg.getString("secret")
 
   import BaseActor._
   /**
@@ -56,6 +67,9 @@ abstract class BaseActor extends Actor with ActorLogging {
     val value = actorCfg.getInt("timeout")
     Timeout(value.seconds)
   }
+
+  private val relationRegistry = RelationRegistry.getInstance
+
   /**
    * Parameters to control the handling of failed child actors:
    * it is the number of retries within a certain time window.
@@ -105,20 +119,22 @@ abstract class BaseActor extends Actor with ActorLogging {
       sender ! Response(Try({
         execute(request)
       })
-        .recover {
+      .recover {
           case t:Throwable =>
             /*
              * Send invalid message as response
              */
-            t.printStackTrace()
-            log.error(t.getLocalizedMessage)
+            error(t.getLocalizedMessage)
             throw new Exception(t.getLocalizedMessage)
         })
 
   }
 
   def execute(request:HttpRequest):String
-
+  /**
+   * This method is made fault resilient
+   * and returns null in case of an error
+   */
   def getBodyAsJson(request: HttpRequest):JsonElement = {
 
     try {
@@ -152,8 +168,184 @@ abstract class BaseActor extends Actor with ActorLogging {
       JsonParser.parseString(body)
 
     } catch {
-      case _:Throwable => null
+      case t:Throwable =>
+        error(t.getLocalizedMessage)
+        null
     }
+
+  }
+
+  def buildEmptyDevices:String = {
+    new JsonArray().toString
+  }
+
+  def buildEmptyDetail:String = {
+    new JsonArray().toString
+  }
+
+  def buildEmptyStation:String = {
+
+    val jsonObj = new JsonObject()
+    jsonObj.addProperty("ts", System.currentTimeMillis)
+    jsonObj.add("values", new JsonArray)
+
+    jsonObj.toString
+
+  }
+
+  def buildEmptyStations:String = {
+    new JsonArray().toString
+  }
+
+  def getDeviceIds(tbAssetName:String):List[String] = {
+
+    val relationEntry = relationRegistry.get(tbAssetName)
+    if (relationEntry.isEmpty) return List.empty[String]
+
+    relationEntry.get.tbToIds
+
+  }
+
+  def getDeviceLatest(tbAdmin:TBAdmin, tbAssetName:String):(Long, List[DeviceValues]) = {
+
+    /* ------------------------------
+     *
+     *            GET DEVICES
+     *
+     * The request parameter `id` refers to the asset
+     * name and is used to retrieve the respective
+     * device identifiers from the relation registry
+     */
+    val tbDeviceIds = getDeviceIds(tbAssetName)
+
+    val latestTs = mutable.ArrayBuffer.empty[Long]
+    val latestVs = mutable.ArrayBuffer.empty[(String,String,Double)]
+
+    tbDeviceIds.foreach(tbDeviceId => {
+      /* ------------------------------
+       *
+       *     GET CLIENT ATTRIBUTES
+       *
+       */
+      val tbKeys = tbAdmin.getTsKeys(tbDeviceId)
+      Thread.sleep(10)
+
+      if (tbKeys.nonEmpty) {
+        /* ------------------------------
+         *
+         *     GET ATTRIBUTE VALUES
+         *
+         */
+        val tbLatest = tbAdmin.getTsLatest(tbDeviceId, tbKeys)
+        /*
+         * This method flattens the results when a certain
+         * sensor contains more than one attribute
+         */
+        tbLatest.foreach{case(attr, values) =>
+
+          val point = values.head
+          latestTs += point.ts
+          /*
+           * The device identifier is sent to the UI to
+           * fasten the subsequent `historical` data
+           * request
+           */
+          val latestValue = (tbDeviceId, attr, point.value)
+          latestVs += latestValue
+
+        }
+      }
+    })
+    /*
+     * Organize latest values with respect to the
+     * device identifier
+     */
+    val latestValues = latestVs
+      .groupBy{case(deviceId, _, _) => deviceId}
+      .map{case(deviceId, data) =>
+        val values = data.map{case(_, name, value) => DeviceValue(name, value)}
+        DeviceValues(deviceId, values)
+      }.toList
+    /*
+     * Compute the average timestamp for all latest
+     * device values
+     */
+    var timestamp = System.currentTimeMillis
+    if (latestTs.nonEmpty)
+      timestamp = latestTs.sum / latestTs.size
+
+    (timestamp, latestValues)
+
+  }
+
+  def getDeviceTs(
+     tbAdmin:TBAdmin, tbDeviceId:String,
+     tbKeys:Seq[String], sensor:String):List[TBPoint] = {
+
+    /*
+     * The timeseries contains all sensors (keys)
+     * that are assigned to the specific devices
+     */
+    val tbValues = try {
+
+      val tbParams = Map.empty[String,String]
+      val tbTimeseries = tbAdmin.getTsHistorical(
+        deviceId = tbDeviceId, keys = tbKeys, params = tbParams, limit = 10000)
+
+      tbTimeseries(sensor)
+
+    } catch {
+      case t: Throwable =>
+        error(s"${t.getLocalizedMessage}")
+        List.empty[TBPoint]
+    }
+
+    tbValues
+
+  }
+
+  def getDevices(tbAdmin:TBAdmin, tbAssetName:String):Seq[Device] = {
+
+    /* ------------------------------
+     *
+     *            GET ASSET
+     *
+     * The request parameter `id` refers to the station
+     * name and is used to retrieve the respective asset
+     */
+    val tbAsset = tbAdmin.getAssetByName(tbAssetName)
+    Thread.sleep(10)
+
+    val tbAssetId = tbAsset.getId.getId.toString
+    /* ------------------------------
+     *
+     *          GET RELATIONS
+     *
+     * Retrieve all relations that refer to this asset
+     * in order to access the respective sensors
+     */
+    val tbRelations = tbAdmin.getRelations(tbAssetId)
+    Thread.sleep(10)
+    /*
+     * These relations are used to extract the identifiers
+     * of those devices that are related to this asset
+     */
+    val toDeviceIds = tbRelations
+      .map(tbRelation => tbRelation.getTo.getId.toString)
+    /* ------------------------------
+     *
+     *          GET DEVICES
+     *
+     * In order to keep the number of requests to the
+     * ThingsBoard server small, we retrieve all devices
+     * here and filter on the client side
+     */
+    val tbDevices = tbAdmin.getDevices.filter(tbDevice => {
+      toDeviceIds.contains(tbDevice.getId.getId.toString)
+    })
+    Thread.sleep(10)
+
+    tbDevices
 
   }
 

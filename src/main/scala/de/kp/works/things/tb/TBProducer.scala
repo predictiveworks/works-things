@@ -19,80 +19,160 @@ package de.kp.works.things.tb
  *
  */
 
+import akka.actor.{Actor, ActorLogging}
+import com.google.gson.JsonObject
+import de.kp.works.things.devices.DeviceRegistry
 import org.eclipse.paho.client.mqttv3.{MqttClient, MqttException, MqttMessage}
 
-class DeviceProducer extends TBProducer {
+case class TBColumn(name:String, value:Double)
 
-  setTBTopic(TBOptions.DEVICE_TELEMETRY_TOPIC)
+case class TBRecord(ts:Long, columns:Seq[TBColumn])
 
-}
+case class TBTimeseries(records:Seq[TBRecord])
+
+case class TBJob(deviceName:String, deviceSeries:TBTimeseries, actorStop:Boolean = true)
 /**
  * The [TBProducer] is responsible for writing MQTT
  * message that refer to a certain device to the
  * ThingsBoard server
  */
-class TBProducer {
+class TBProducer extends Actor with ActorLogging {
 
-  private val mqttClient: Option[MqttClient] = buildMqttClient
-  private var connected:Boolean = false
+  private val registry = DeviceRegistry.getInstance
 
-  private var mqttTopic:Option[String] = None
+  override def receive: Receive = {
 
-  private var verbose:Option[Boolean] = Some(true)
+    case TBJob(deviceName, deviceSeries, actorStop) =>
+      /*
+       * STEP #1: Retrieve access parameters for the provided
+       * device from the device registry
+       */
+      val deviceEntry = registry.get(deviceName)
+      if (deviceEntry.isEmpty) {
 
-  def setTBTopic(topic:String):TBProducer = {
-    this.mqttTopic = Some(topic)
-    this
+        val now = new java.util.Date
+        println(
+          s"[WARN] - $now.toString - Device `$deviceName` is not registered in the device registry.")
+
+        /*
+         * Stop this actor as each actor is assigned
+         * to a certain device
+         */
+        if (actorStop) context.stop(self)
+
+      }
+      else {
+        /*
+         * STEP #2: Set the MQTT topic that is assigned
+         * to this device
+         */
+        val tbMqttTopic = deviceEntry.get.tbMqttTopic
+        /*
+         * STEP #3: Connect to ThingsBoard via MQTT using
+         * the provided topic and device token
+         */
+        val tbDeviceToken = deviceEntry.get.tbDeviceToken
+        val tbMqttClient = start(tbDeviceToken)
+        /*
+         * STEP #4: Check whether the [TBProducer] is connected
+         * to the ThingsBoard MQTT broker
+         */
+        if (tbMqttClient == null) {
+
+          val now = new java.util.Date
+          println(
+            s"[WARN] - $now.toString - Device `$deviceName` could not be connected to ThingsBoard broker.")
+
+          /*
+           * Stop this actor as each actor is assigned
+           * to a certain device
+           */
+          if (actorStop) context.stop(self)
+
+        }
+        else {
+          /*
+           * STEP #5: Publish all provided records to the
+           * ThingsBoard MQTT broker
+           */
+          deviceSeries.records.foreach(record => {
+            /*
+             * Every record is transformed into
+             * a JSON payload
+             */
+            val tbPayload = new JsonObject
+            tbPayload.addProperty("ts", record.ts)
+
+            val values = new JsonObject
+
+            record.columns.foreach(column => {
+              values.addProperty(column.name, column.value)
+            })
+
+            tbPayload.add("values", values)
+            /*
+             * The transformed record is sent to
+             * the ThingsBoard MQTT broker
+             */
+            publish(tbMqttClient, tbMqttTopic, tbPayload.toString)
+
+          })
+          /*
+           * STEP #6: Disconnect from the ThingsBoard MQTT
+           * broker and destroy this actor
+           */
+          stop(tbMqttClient)
+          if (actorStop) context.stop(self)
+
+        }
+      }
+    case _ =>
+      val now = new java.util.Date()
+      println(s"[ERROR] $now.toString - Unknown request for [TBProducer] detected.")
   }
 
-  def setVerbose(verbose:Boolean):TBProducer = {
-    this.verbose = Some(verbose)
-    this
-  }
-
-  def buildMqttClient:Option[MqttClient] = {
+  private def buildMqttClient:MqttClient = {
 
     val brokerUrl = TBOptions.getBrokerUrl
     val clientId  = TBOptions.getClientId
 
     val persistence = TBOptions.getPersistence
-    val client = new MqttClient(brokerUrl, clientId, persistence)
-
-    Some(client)
+    new MqttClient(brokerUrl, clientId, persistence)
 
   }
-
-  def isConnected:Boolean = connected
 
   /**
    * The `deviceToken` is either a registered ThingsBoard
    * `device` or a `gateway` token.
    */
-  def start(deviceToken:String):Unit = {
+  private def start(deviceToken:String):MqttClient = {
 
-    if (mqttClient.isEmpty) buildMqttClient
+    val mqttClient = buildMqttClient
 
     val mqttOptions = TBOptions.getMqttOptions(deviceToken)
-    mqttClient.get.connect(mqttOptions)
+    mqttClient.connect(mqttOptions)
 
-    connected = mqttClient.get.isConnected
+    if (mqttClient.isConnected) {
 
-    if (verbose.get) {
       val now = new java.util.Date()
       println(s"[INFO] $now.toString - TB Producer is connected to ThingsBoard.")
+
+      mqttClient
+
+    }
+    else {
+      null
+
     }
 
   }
 
-  def stop():Unit = {
+  private def stop(mqttClient:MqttClient):Unit = {
 
-    if (mqttClient.isEmpty) return
-    mqttClient.get.disconnect()
+    mqttClient.disconnect()
 
-    if (verbose.get) {
-      val now = new java.util.Date()
-      println(s"[INFO] $now.toString - TB Producer is disconnected from ThingsBoard.")
-    }
+    val now = new java.util.Date()
+    println(s"[INFO] $now.toString - TB Producer is disconnected from ThingsBoard.")
 
   }
 
@@ -101,27 +181,14 @@ class TBProducer {
    * MQTT message in a ThingsBoard compliant
    * format to the server
    */
-  def publish(mqttPayload:String):Unit = {
+  private def publish(mqttClient:MqttClient, mqttTopic:String, mqttPayload:String):Unit = {
 
-    if (mqttClient.isEmpty || !connected) {
-
-      val now = new java.util.Date()
-      throw new Exception(s"[ERROR] $now.toString - TB Producer is not connected to ThingsBoard.")
-
-    }
-
-    if (mqttTopic.isEmpty) {
-
-      val now = new java.util.Date()
-      throw new Exception(s"[ERROR] $now.toString - No Mqtt topic configured for TB Producer.")
-
-    }
     try {
 
       val mqttMessage = new MqttMessage(mqttPayload.getBytes("UTF-8"))
       mqttMessage.setQos(TBOptions.getQos)
 
-      mqttClient.get.publish(mqttTopic.get, mqttMessage)
+      mqttClient.publish(mqttTopic, mqttMessage)
 
     } catch {
       case t:MqttException =>
@@ -132,11 +199,9 @@ class TBProducer {
         val message = t.getMessage
         val now = new java.util.Date()
 
-        throw new Exception(s"[ERROR] $now.toString - Mqtt publishing failed: Reason=$reasonCode, Cause=$cause, Message=$message")
+        println(s"[ERROR] $now.toString - Mqtt publishing failed: Reason=$reasonCode, Cause=$cause, Message=$message")
 
     }
 
-
   }
-
 }

@@ -37,7 +37,7 @@ case class AirqPollutant(
   /*
    * The geospatial coordinates of the sampling point;
    * if the respective sensors of a certain station
-   * are distributed, this is the sensor coordinate.
+   * are distributed, this is the station coordinate.
    */
   longitude: Double,
   latitude: Double,

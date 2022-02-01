@@ -19,36 +19,97 @@ package de.kp.works.things.airq
  *
  */
 
+import akka.actor.{ActorSystem, Props}
+import akka.stream.ActorMaterializer
 import de.kp.works.things.http.HttpConnect
+import de.kp.works.things.tb._
 
 import java.io.{BufferedWriter, File, FileWriter}
-import java.text.SimpleDateFormat
 import scala.collection.mutable
+import scala.concurrent.ExecutionContextExecutor
 
-/**
- * An [AirqPoint] defines a certain time-value
- * data point of a specific pollutant
- */
-case class AirqPoint(ts:Long, value:Double)
+object AirqConsumer {
 
-case class AirqStation(id:String, name:String, lon:Double, lat:Double)
+  private var instance:Option[AirqConsumer] = None
+
+  def getInstance():AirqConsumer = {
+
+    if (instance.isEmpty)
+      instance = Some(new AirqConsumer)
+
+    instance.get
+
+  }
+
+}
 
 class AirqConsumer extends HttpConnect with AirqTransform {
 
+  private val uuid = java.util.UUID.randomUUID.toString
+  /**
+   * Akka 2.6 provides a default materializer out of the box, i.e., for Scala
+   * an implicit materializer is provided if there is an implicit ActorSystem
+   * available. This avoids leaking materializers and simplifies most stream
+   * use cases somewhat.
+   */
+  implicit val airqSystem: ActorSystem = ActorSystem(s"airq-system-$uuid")
+  implicit lazy val airqContext: ExecutionContextExecutor = airqSystem.dispatcher
+
+  implicit val airqMaterializer: ActorMaterializer = ActorMaterializer()
+
   private val apiUrl = AirqOptions.getBaseUrl
-  private val apiInterval = 1000 * 60 * 30
+  private val interval = AirqOptions.getTimeInterval
 
   private val country = AirqOptions.getCountry
   private val pollutants = AirqOptions.getPollutants
 
   private val folder = AirqOptions.getFolder
   private val stations = AirqOptions.getStations
+  /**
+   * A flag that determines whether this consumer is retrieving
+   * values from the [AirQuality] API for the configured weather
+   * stations and their devices
+   */
+  private var consuming = true
+  /**
+   * The timestamp that determine when the last weather data where
+   * retrieved from the AirQuality API
+   */
+  private var lastTs = 0L
 
-  def start(): Unit = {}
+  def start(): Unit = {
 
-  def stop(): Unit = {}
+    while (consuming) {
 
-  def extractPollutants():Unit = {
+      if (lastTs == 0L) {
+        extractStations()
+      }
+      else {
+
+        if (System.currentTimeMillis - lastTs < interval) {
+          extractStations()
+        }
+
+      }
+    }
+
+  }
+
+  def stop(): Unit = {
+    consuming = false
+    airqSystem.terminate()
+  }
+  /**
+   * This method is responsible for extracting all
+   * pollutant timeseries organized by pollutant
+   * and respective qir quality station
+   */
+  def extractStations():Unit = {
+    /*
+     * Register the timestamp in milliseconds, the pollutant
+     * data are retrieved from the [AirQuality] API
+     */
+    lastTs = System.currentTimeMillis
 
     val data = mutable.ArrayBuffer.empty[Seq[AirqPollutant]]
     /*
@@ -65,42 +126,71 @@ class AirqConsumer extends HttpConnect with AirqTransform {
       data += download(pollutant))
     /*
      * STEP #2: The current implementation defines
-     * an Air Quality station as a gateway device
+     * an air quality station as a ThingsBoard asset
      * with pollutant devices connected.
      *
-     * This approach reduces the amount of requests
-     * drastically, as we publish all pollutants for
-     * every station once
+     * The current implementation specifies 60 different
+     * devices that are organized as 17 assets
      */
-    val pollutantsByStations = data.flatten
+    data.flatten
       .groupBy(airqPollutant => airqPollutant.stationId)
-      .map{case(stationId, values) =>
+      .foreach { case (stationId, values) =>
         /*
-         * The `stationId` refers to the gateway level;
+         * The `stationId` refers to the asset level;
          * therefore, all sensors must be group by the
          * respective pollution type
          */
         val pollutantsByStation = values.groupBy(v => v.poll_type)
         /*
-         * As a final step, the Air Quality timeseries
+         * As a final step, the air quality timeseries
          * per pollution and station is extracted
          */
-        val pollutantsTimeSeries = pollutantsByStation.map{case(airqPoll, airqValues) => {
+        pollutantsByStation.foreach { case (airqPoll, airqValues) =>
+          /*
+           * Determine device name: airqPoll is one of the
+           * following values:
+           *
+           * ["CO", "NO", "NO2", "O3", "PM10", "PM2.5", "SO2"]
+           */
+          val replacement = ""
+          val tbDeviceName = s"DEV.${airqPoll.toUpperCase}${stationId.replace("STA", replacement)}"
+          /*
+           * Transform `airqValues` into [TBRecord]s
+           */
+          val tbRecords = airqValues.map(airqValue => {
 
-          val airqTs = airqValues
-            .map(airqV => AirqPoint(airqV.timestamp, airqV.value))
-            .sortBy(airqPoint => airqPoint.ts)
+            val ts = airqValue.timestamp
+            /*
+             * The normalized pollutant is used as the telemetry
+             * attribute key assigned to the ThingsBoard device
+             */
+            val name = airqPoll.replace(".", "").toLowerCase
+            val value = airqValue.value
 
-          (airqPoll, airqTs)
+            val tbColumn = TBColumn(name, value)
+            val tbRecord = TBRecord(ts, Seq(tbColumn))
 
-        }}
+            tbRecord
 
-        (stationId, pollutantsTimeSeries)
+          })
+
+          val tbTimeseries = TBTimeseries(tbRecords)
+          /*
+           * Build device specific actor and send TBJob
+           * to this actor to publish time series records.
+           *
+           * This actor is automatically destroyed after
+           * the provided TBJob is executed
+           */
+          val tbDeviceActor = airqSystem.actorOf(
+            Props(new TBProducer()), s"$tbDeviceName-actor")
+
+          val tbJob = TBJob(tbDeviceName, tbTimeseries)
+          tbDeviceActor ! tbJob
+        }
       }
-
-    println(pollutantsByStations)
-
   }
+
   /**
    * This is the main method that retrieves that actual
    * pollutant data for the provided and configured country

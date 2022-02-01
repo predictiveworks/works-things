@@ -34,15 +34,16 @@ import scala.concurrent.duration._
 
 trait HttpConnect {
 
-  implicit val system: ActorSystem = ActorSystem("http-connect-system")
+  private val uuid = java.util.UUID.randomUUID.toString
+  implicit val httpSystem: ActorSystem = ActorSystem(s"http-system-$uuid")
 
-  implicit lazy val context: ExecutionContextExecutor = system.dispatcher
-  implicit val materializer: ActorMaterializer = ActorMaterializer()
+  implicit lazy val httpContext: ExecutionContextExecutor = httpSystem.dispatcher
+  implicit val httpMaterializer: ActorMaterializer = ActorMaterializer()
 
   /*
    * Common timeout for all Akka connection
    */
-  val duration: FiniteDuration = 30.seconds
+  val duration: FiniteDuration = 10.seconds
   implicit val timeout: Timeout = Timeout(duration)
 
   def getHtml(endpoint:String):String = {
@@ -131,13 +132,13 @@ trait HttpConnect {
       val reqHeaders = headers.map{case(k,v) => RawHeader(k, v)}.toList
 
       val request = HttpRequest(HttpMethods.POST, endpoint, entity=reqEntity, headers=reqHeaders)
-      val future: Future[HttpResponse] = Http(system).singleRequest(request)
+      val future: Future[HttpResponse] = Http(httpSystem).singleRequest(request)
 
       val response = Await.result(future, duration)
 
       val status = response.status
       if (status != StatusCodes.OK)
-        throw new Exception(s"Request to Http endpoint returns with: ${status.value}. Reason: ${status.reason}")
+        throw new Exception(s"Request to Http endpoint returns with: ${status.value}.")
 
       response.entity.dataBytes
 
@@ -161,7 +162,7 @@ trait HttpConnect {
           HttpRequest(HttpMethods.GET, endpoint, headers=headers.map{case(k,v) => RawHeader(k, v)}.toList)
 
       }
-      val future: Future[HttpResponse] = Http(system).singleRequest(request)
+      val future: Future[HttpResponse] = Http(httpSystem).singleRequest(request)
 
       val response = Await.result(future, duration)
 
@@ -176,7 +177,7 @@ trait HttpConnect {
       if (status == StatusCodes.UnprocessableEntity)
         return response.entity.dataBytes
 
-      throw new Exception(s"Request to Http endpoint returns with: ${status.value}. Reason: ${status.reason}")
+      throw new Exception(s"Request to Http endpoint returns with: ${status.value}.")
 
     } catch {
       case t:Throwable =>

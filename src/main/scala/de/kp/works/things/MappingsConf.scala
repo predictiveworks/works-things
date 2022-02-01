@@ -21,13 +21,13 @@ package de.kp.works.things
 
 import com.typesafe.config.{Config, ConfigFactory}
 
-object ThingsConf {
+object MappingsConf {
 
-  private val path = "reference.conf"
+  private val path = "mappings.conf"
   /**
-   * This is the reference to the overall configuration
-   * file that holds all configuration required for this
-   * application
+   * This is the reference to the mapping configuration
+   * file that holds all TTN attribute mappings required
+   * for this application
    */
   private var cfg: Option[Config] = None
 
@@ -65,23 +65,7 @@ object ThingsConf {
     cfg.isDefined
   }
 
-  def getActorCfg: Config = getCfg("actor")
-
-  def getBindingCfg: Config = getCfg("binding")
-
-  def getClimateCfg: Config = getCfg("climate")
-
-  def getProductionCfg: Config = getCfg("production")
-
-  def getRepositoryCfg: Config = getCfg("repository")
-
-  def getSecurityCfg: Config = getCfg("security")
-
-  def getTBCfg: Config = getCfg("thingsboard")
-
-  def getTTNCfg: Config = getCfg("thingsnetwork")
-
-  def getWeatherCfg: Config = getCfg("weather")
+  def getMappingsCfg: Config = getCfg("mappings")
 
   def getCfg(name:String): Config = {
 

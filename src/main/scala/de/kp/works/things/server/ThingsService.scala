@@ -21,11 +21,8 @@ package de.kp.works.things.server
 
 import akka.actor.{ActorRef, Props}
 import akka.http.scaladsl.server.Route
-import de.kp.works.things.actors.{TBDevice, TBDevices}
-import de.kp.works.things.airq.AirQManager
+import de.kp.works.things.actors._
 import de.kp.works.things.routes.MobileRoutes
-import de.kp.works.things.ttn.TTNManager
-import de.kp.works.things.weather.OweaManager
 
 class ThingsService extends BaseService {
 
@@ -44,63 +41,74 @@ class ThingsService extends BaseService {
 
     Map(
       /*
-       * Mobile support
+       * Air quality (mobile) support
+       */
+      AIRQ_DETAIL_ACTOR -> system.actorOf(
+        Props(new AirqDetail()), AIRQ_DETAIL_ACTOR),
+
+      AIRQ_STATION_ACTOR -> system.actorOf(
+        Props(new AirqStation()), AIRQ_STATION_ACTOR),
+
+      AIRQ_STATIONS_ACTOR -> system.actorOf(
+        Props(new AirqStations()), AIRQ_STATIONS_ACTOR),
+      /*
+       * Open weather (mobile) support
+       */
+      OWEA_DETAIL_ACTOR -> system.actorOf(
+        Props(new OweaDetail()), OWEA_DETAIL_ACTOR),
+
+      OWEA_STATION_ACTOR -> system.actorOf(
+        Props(new OweaStation()), OWEA_STATION_ACTOR),
+
+      OWEA_STATIONS_ACTOR -> system.actorOf(
+        Props(new OweaStations()), OWEA_STATIONS_ACTOR),
+      /*
+       * Production (mobile) support
+       */
+      PROD_DETAIL_ACTOR -> system.actorOf(
+        Props(new ProdDetail()), PROD_DETAIL_ACTOR),
+
+      PROD_STATION_ACTOR -> system.actorOf(
+        Props(new ProdStation()), PROD_STATION_ACTOR),
+
+      PROD_STATIONS_ACTOR -> system.actorOf(
+        Props(new ProdStations()),PROD_STATIONS_ACTOR),
+      /*
+       * ThingsBoard device support
        */
       TB_DEVICE_ACTOR -> system.actorOf(
         Props(new TBDevice()), TB_DEVICE_ACTOR),
 
       TB_DEVICES_ACTOR -> system.actorOf(
-      Props(new TBDevices()), TB_DEVICES_ACTOR)
+      Props(new TBDevices()), TB_DEVICES_ACTOR),
+      /*
+       * The ThingsNetwork device support
+       */
+      TTN_DEVICES_ACTOR -> system.actorOf(
+      Props(new TTNDevices()), TTN_DEVICES_ACTOR)
     )
 
   }
 
   override def onStart(): Unit = {
-
-    /* -------------------- DEVICE HANDLING -------------------- */
-
     /*
-     * STEP #1: Create pre-defined Air Quality stations
-     * (see configuration file) as ThingsBoard gateway
-     * devices if they do not exist already
-     */
-    var now = new java.util.Date
-    println(s"[INFO] ${now.toString} - Create Air Quality stations: started")
-
-    val airqManager = new AirQManager()
-    airqManager.createStationsIfNotExist()
-
-    now = new java.util.Date
-    println(s"[INFO] ${now.toString} - Create Air Quality stations: finished")
-    /*
-     * STEP #2: Create pre-defined OpenWeather stations
-     * (see configuration file) as ThingsBoard devices
+     * STEP #1: Asset & device handling creates
+     * pre-defined stations, rooms and devices
      * if they do not exist already
      */
-    now = new java.util.Date
-    println(s"[INFO] ${now.toString} - Create Open Weather stations: started")
-
-    val oweaManager = new OweaManager()
-    oweaManager.createStationsIfNotExist()
-
-    now = new java.util.Date
-    println(s"[INFO] ${now.toString} - Create Open Weather stations: finished")
+    var success = ThingsStartup.createAssetsIfNotExist()
+    if (!success) {
+      throw new Exception(s"Creation of ThingsBoard assets and devices failed.")
+    }
     /*
-     * STEP #3: Create dynamically registered The ThingsNetwork
-     * devices as ThingsBoard devices if they do not exist already
+     * STEP #2: Start all implemented data sensors
+     * to retrieve device specific real-time data
+     * and publish to ThingsBoard
      */
-    now = new java.util.Date
-    println(s"[INFO] ${now.toString} - Create TTN devices: started")
-
-    val ttnManager = new TTNManager()
-    ttnManager.createDevicesIfNotExist()
-
-    now = new java.util.Date
-    println(s"[INFO] ${now.toString} - Create TTN devices: finished")
-
-    /* -------------------- MQTT HANDLING -------------------- */
-
-    // TODO Start the implemented data sensors
+    success = ThingsStartup.activeConsumers()
+    if (!success) {
+      throw new Exception(s"Activation of data consumers failed.")
+    }
 
   }
 }

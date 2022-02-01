@@ -25,6 +25,16 @@ object ThingsServer extends BaseServer {
   override var programDesc: String = "Connect multiple data sources to a ThingsBoard server."
 
   override protected var configFile: Option[String] = None
+  /**
+   * The name of the external file that contains all
+   * (client) attribute mappings between backend and
+   * frontend attribute names.
+   *
+   * Note: This is an important approach to harmonize
+   * frontend attribute names for different TTN device
+   * attributes.
+   */
+  override protected var mappingsFile: Option[String] = None
 
   override def launch(args: Array[String]): Unit = {
 
@@ -32,5 +42,4 @@ object ThingsServer extends BaseServer {
     start(args, service)
 
   }
-
 }

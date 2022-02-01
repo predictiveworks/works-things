@@ -55,7 +55,16 @@ case class TTNDevice(
    */
   latitude: Double,
   longitude: Double,
-  altitude: Double
+  altitude: Double,
+  /*
+   * The asset identifier, this TTN is connected to.
+   * It is used as a back reference, and refers that
+   * ThingsBoard asset, the device is connected to.
+   *
+   * In case of the production use case, this is the
+   * respective room identifier
+   */
+  asset:String
 )
 
 object TTNAdmin {
@@ -80,9 +89,11 @@ class TTNAdmin extends HttpConnect {
   /*
    * The assigned (additional) field_mask is mandatory,
    * if addition information beyond identifiers must
-   * be retrieved
+   * be retrieved:
+   *
+   * https://www.thethingsindustries.com/docs/reference/api/
    */
-  private val devicesUrl = s"/api/v3/applications/$appId/devices?field_mask=name,description,locations"
+  private val devicesUrl = s"/api/v3/applications/$appId/devices?field_mask=name,description,locations,attributes"
 
   def getDevices:Seq[TTNDevice] = {
 
@@ -92,6 +103,8 @@ class TTNAdmin extends HttpConnect {
 
     val bytes = get(endpoint, header)
     val json = extractJsonBody(bytes)
+
+    println(json)
     /*
      * Response format:
      *
@@ -114,10 +127,14 @@ class TTNAdmin extends HttpConnect {
      *        "longitude":16.525613888888902,
      *        "source":"SOURCE_REGISTRY"
      *      }
+     *    },
+     *    "attributes": {
+     *      "asset": "ROOM.INCU.HUTS.KSTAF"
      *    }
      *  }
      * ]}
      */
+
     val devices = json.getAsJsonObject.get("end_devices").getAsJsonArray
     devices
       .map(device => {
@@ -192,6 +209,17 @@ class TTNAdmin extends HttpConnect {
         }
       }
 
+      val asset = {
+        val v = deviceObj.get("attributes")
+        if (v == null) ""
+        else {
+          val assetObj = v.getAsJsonObject.get("asset")
+          if (assetObj == null) ""
+          else
+            assetObj.getAsString
+        }
+      }
+
       TTNDevice(
         application_id = application_id,
         device_id      = device_id,
@@ -202,7 +230,8 @@ class TTNAdmin extends HttpConnect {
         description    = description,
         latitude       = latitude,
         longitude      = longitude,
-        altitude       = altitude
+        altitude       = altitude,
+        asset          = asset
       )
 
     }).toSeq

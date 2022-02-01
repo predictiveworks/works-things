@@ -1,4 +1,4 @@
-package de.kp.works.things.weather
+package de.kp.works.things.owea
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.

@@ -169,15 +169,8 @@ object SslOptions {
 
     }
   }
-  /**
-   * In [[akka-http]] version 10.0.x is no difference between
-   * client and service side HTTPS context
-   */
-  def buildClientConnectionContext(cfg:Config): HttpsConnectionContext = {
-    ConnectionContext.https(sslContext = buildSslContext(cfg))
-  }
 
-  def buildServerConnectionContext(cfg:Config): HttpsConnectionContext = {
+  def buildConnectionContext(cfg:Config): HttpsConnectionContext = {
     ConnectionContext.https(sslContext = buildSslContext(cfg))
   }
 
@@ -204,10 +197,14 @@ object SslOptions {
       val v = securityCfg.getString("ksPass")
       if (v.isEmpty) None else Option(v)
     }
-
+    /*
+     * __KUP__ An empty keystore algorithm is
+     * interpreted as `use default` algorithm
+     *
+     */
     val ksAlgo = {
       val v = securityCfg.getString("ksAlgo")
-      if (v.isEmpty) None else Option(v)
+      if (v.isEmpty) Option("") else Option(v)
     }
 
     val tsFile = {
@@ -224,10 +221,14 @@ object SslOptions {
       val v = securityCfg.getString("tsPass")
       if (v.isEmpty) None else Option(v)
     }
-
+    /*
+     * __KUP__ An empty keystore algorithm is
+     * interpreted as `use default` algorithm
+     *
+     */
     val tsAlgo = {
       val v = securityCfg.getString("tsAlgo")
-      if (v.isEmpty) None else Option(v)
+      if (v.isEmpty) Option("") else Option(v)
     }
 
     val caCertFile = {
@@ -347,17 +348,21 @@ class SslOptions(
 
   }
 
-  private def buildSslContext(keyManagers:Seq[KeyManager], trustManagers:Seq[TrustManager], secureRandom:Option[SecureRandom]) = {
+  private def buildSslContext(keyManagers:Array[KeyManager], trustManagers:Array[TrustManager], secureRandom:Option[SecureRandom]) = {
 
     val sslContext = SSLContext.getInstance(tlsVersion)
 
-    sslContext.init(nullIfEmpty(keyManagers.toArray), nullIfEmpty(trustManagers.toArray), secureRandom.orNull)
+    sslContext.init(nullIfEmpty(keyManagers), nullIfEmpty(trustManagers), secureRandom.orNull)
     sslContext
 
   }
 
   private def nullIfEmpty[T](array: Array[T]) = {
-    if (array.isEmpty) null else array
+    /*
+     * __KUP__ The provided `key` or `trust`
+     * manager can be null
+     */
+    if (array == null || array.isEmpty) null else array
   }
 
   def getSslSocketFactory: SSLSocketFactory = {
@@ -406,8 +411,13 @@ class SslOptions(
          */
         SslUtil.getCertFileKeyManagerFactory(certFile.get, privateKeyFile.get, privateKeyFilePass.get)
 
-      } else
-        throw new Exception("Failed to retrieve KeyManager factory.")
+      } else {
+        /*
+         * This path indicates that there are not SSL specific
+         * parameters are available
+         */
+        null
+      }
 
     } catch {
 

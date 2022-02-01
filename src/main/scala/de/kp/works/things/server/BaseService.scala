@@ -24,13 +24,14 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import de.kp.works.things.ThingsConf
+import de.kp.works.things.logging.Logging
 import de.kp.works.things.server.ssl.SslOptions
+import de.kp.works.things.{MappingsConf, ThingsConf}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
-trait BaseService {
+trait BaseService extends Logging {
 
   private var server:Option[Future[Http.ServerBinding]] = None
 
@@ -40,7 +41,7 @@ trait BaseService {
    * available. This avoids leaking materializers and simplifies most stream
    * use cases somewhat.
    */
-  implicit val system: ActorSystem = ActorSystem("works-client-service")
+  implicit val system: ActorSystem = ActorSystem("works-things-service")
   implicit lazy val context: ExecutionContextExecutor = system.dispatcher
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -51,34 +52,52 @@ trait BaseService {
 
   def buildRoute:Route
 
-  def start(conf:Option[String]):Unit = {
+  def start(conf:Option[String], mappings:Option[String]):Unit = {
 
-    ThingsConf.init(conf)
-    if (!ThingsConf.isInit) {
-
-      val now = new java.util.Date().toString
-      throw new Exception(s"[ERROR] $now - Loading configuration failed and service is not started.")
-
-    }
-
-    val routes = buildRoute
-    val binding = ThingsConf.getBindingCfg
-
-    val host = binding.getString("host")
-    val port = binding.getInt("port")
-
-    val security = ThingsConf.getSecurityCfg
-    server =
-      if (security.getString("ssl") == "false")
-        Some(Http().bindAndHandle(routes , host, port))
-
-      else {
-        val context = SslOptions.buildServerConnectionContext(security)
-        Some(Http().bindAndHandle(routes, host, port, connectionContext = context))
+    try {
+      /*
+       * Initialize the overall configuration
+       */
+      ThingsConf.init(conf)
+      if (!ThingsConf.isInit) {
+        throw new Exception(s"Loading configuration failed and service is not started.")
+      }
+      /*
+       * Initialize the attribute mappings
+       */
+      MappingsConf.init(conf)
+      if (!MappingsConf.isInit) {
+        throw new Exception(s"Loading mappings failed and service is not started.")
       }
 
-    /* After start processing */
-    onStart()
+      val routes = buildRoute
+      val binding = ThingsConf.getBindingCfg
+
+      val host = binding.getString("host")
+      val port = binding.getInt("port")
+
+      val security = ThingsConf.getSecurityCfg
+      server =
+        if (security.getString("ssl") == "false") {
+          Some(Http().bindAndHandle(routes , host, port))
+
+        } else {
+          val context = SslOptions.buildConnectionContext(security)
+
+          Http().setDefaultServerHttpContext(context)
+          Some(Http().bindAndHandle(routes, host, port, connectionContext = context))
+        }
+
+      /* After start processing */
+      // onStart()
+
+    } catch {
+      case t:Throwable =>
+        system.terminate()
+
+        error(t.getLocalizedMessage)
+        System.exit(0)
+    }
 
   }
 
@@ -87,6 +106,7 @@ trait BaseService {
   def stop():Unit = {
 
     if (server.isEmpty) {
+      system.terminate()
 
       val now = new java.util.Date().toString
       throw new Exception(s"[ERROR] $now - Service was not launched.")
@@ -103,6 +123,7 @@ trait BaseService {
        */
       .onComplete(_ => {
         system.terminate()
+        System.exit(0)
       })
 
   }

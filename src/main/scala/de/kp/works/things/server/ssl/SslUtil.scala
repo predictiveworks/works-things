@@ -20,9 +20,14 @@ package de.kp.works.things.server.ssl
  */
 
 import com.google.common.base.Strings
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
+import org.bouncycastle.cert.X509CertificateHolder
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder
 import org.bouncycastle.openssl.{PEMEncryptedKeyPair, PEMKeyPair, PEMParser}
+import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo
+import org.bouncycastle.pkcs.jcajce.JcePKCSPBEInputDecryptorProviderBuilder
 
 import java.io.{ByteArrayInputStream, InputStreamReader}
 import java.nio.file.{Files, Paths}
@@ -59,13 +64,18 @@ object SslUtil {
   /** * KEY STORE ONLY ** */
 
   def getStoreSslSocketFactory(
-                                keystoreFile: String,
-                                keystoreType: String,
-                                keystorePassword: String,
-                                keystoreAlgorithm: String): SSLSocketFactory =
+    keystoreFile: String,
+    keystoreType: String,
+    keystorePassword: String,
+    keystoreAlgorithm: String): SSLSocketFactory =
     getStoreSslSocketFactory(keystoreFile, keystoreType, keystorePassword, keystoreAlgorithm, TLS_VERSION)
 
-  def getStoreSslSocketFactory(keystoreFile: String, keystoreType: String, keystorePassword: String, keystoreAlgorithm: String, tlsVersion: String): SSLSocketFactory = {
+  def getStoreSslSocketFactory(
+    keystoreFile: String,
+    keystoreType: String,
+    keystorePassword: String,
+    keystoreAlgorithm: String,
+    tlsVersion: String): SSLSocketFactory = {
 
     val sslContext = SSLContext.getInstance(tlsVersion)
 
@@ -153,6 +163,7 @@ object SslUtil {
   def getStoreKeyManagerFactory(keystoreFile: String, keystoreType: String, keystorePassword: String, keystoreAlgorithm: String): KeyManagerFactory = {
 
     var keystore = loadKeystore(keystoreFile, keystoreType, keystorePassword)
+    println("keystore loaded")
     /*
      * We have to manually fall back to default keystore. SSLContext won't provide
      * such a functionality.
@@ -273,6 +284,8 @@ object SslUtil {
   /** *** X509 CERTIFICATE **** */
 
   def getX509CertFromPEM(crtFile: String): X509Certificate = {
+
+    Security.addProvider(new BouncyCastleProvider)
     /*
      * Since Java cannot read PEM formatted certificates, this method is using
      * bouncy castle (http://www.bouncycastle.org/) to load the necessary files.
@@ -285,10 +298,22 @@ object SslUtil {
     val bais = new ByteArrayInputStream(bytes)
 
     val reader = new PEMParser(new InputStreamReader(bais))
-    val cert = reader.readObject.asInstanceOf[X509Certificate]
+    val certObj = reader.readObject
 
     reader.close()
-    cert
+
+    certObj match {
+      case cert:X509Certificate =>
+        cert
+
+      case certHolder:X509CertificateHolder =>
+        new JcaX509CertificateConverter()
+          .setProvider( "BC" )
+          .getCertificate( certHolder )
+
+      case _ =>
+        throw new Exception(s"Unknown certificate object $certObj detected.")
+    }
 
   }
 
@@ -296,28 +321,61 @@ object SslUtil {
 
   def getPrivateKeyFromPEM(keyFile: String, password: String): PrivateKey = {
 
+    Security.addProvider(new BouncyCastleProvider)
+
     val bytes = Files.readAllBytes(Paths.get(keyFile))
     val bais = new ByteArrayInputStream(bytes)
 
     val reader = new PEMParser(new InputStreamReader(bais))
-    val keyObject = reader.readObject
+    val keyObj = reader.readObject
 
     reader.close()
 
-    var keyPair:PEMKeyPair = null
-    keyObject match {
-      case pair: PEMEncryptedKeyPair =>
+    val keyBytes = keyObj match {
+        /*
+         * Encrypted support either for (private, public)
+         * key pairs or a single private key info
+         */
+      case encKeyPair: PEMEncryptedKeyPair =>
+        /*
+         * This path extracts the private key from
+         * a PEM (private, public) key file
+         */
         if (password == null)
           throw new Exception("[ERROR] Reading private key from file without password is not supported.")
-        val passwordArray = password.toCharArray
-        val provider = new JcePEMDecryptorProviderBuilder().build(passwordArray)
-        keyPair = pair.decryptKeyPair(provider)
-      case _ => keyPair = keyObject.asInstanceOf[PEMKeyPair]
+
+        val provider = new JcePEMDecryptorProviderBuilder().build(password.toCharArray)
+        val keyPair = encKeyPair.decryptKeyPair(provider)
+
+        keyPair.getPrivateKeyInfo.getEncoded
+
+      case encPrivateKeyInfo:PKCS8EncryptedPrivateKeyInfo =>
+        /*
+         * This path extracts the private key from
+         * a PEM private key file
+         */
+        if (password == null)
+          throw new Exception("[ERROR] Reading private key from file without password is not supported.")
+
+        val builder = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider("BC")
+        val provider = builder.build(password.toCharArray)
+
+        val privateKeyInfo = encPrivateKeyInfo.decryptPrivateKeyInfo(provider)
+        privateKeyInfo.getEncoded
+
+      case keyPair:PEMKeyPair =>
+        keyPair.getPrivateKeyInfo.getEncoded
+
+      case privateKeyInfo:PrivateKeyInfo =>
+        privateKeyInfo.getEncoded
+
+      case _ =>
+        throw new Exception(s"Unknown key object $keyObj detected.")
     }
 
-    val factory = KeyFactory.getInstance("RSA", "BC")
-    val keySpec = new PKCS8EncodedKeySpec(keyPair.getPrivateKeyInfo.getEncoded)
+    val keySpec = new PKCS8EncodedKeySpec(keyBytes)
 
+    val factory = KeyFactory.getInstance("RSA", "BC")
     factory.generatePrivate(keySpec)
 
   }

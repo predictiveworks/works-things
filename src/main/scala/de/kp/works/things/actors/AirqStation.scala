@@ -20,14 +20,10 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
+import de.kp.works.things.airq.AirqOptions
 import de.kp.works.things.tb.TBAdmin
 
-/**
- * This actor supports the mobile access to the ThingsBoard
- * (HTTP) server and retrieves all devices managed by a certain
- * tenant and customer.
- */
-class TBDevices extends BaseActor {
+class AirqStation extends BaseActor {
 
   /**
    * __fault__resilient
@@ -38,41 +34,72 @@ class TBDevices extends BaseActor {
     if (json == null) {
 
       warn(Messages.invalidJson())
-      return buildEmptyDevices
+      return buildEmptyStation
 
     }
 
-    val req = mapper.readValue(json.toString, classOf[TBDevicesReq])
-
+    val req = mapper.readValue(json.toString, classOf[AirqStationReq])
     if (req.secret.isEmpty || req.secret != secret) {
 
       warn(Messages.unauthorizedReq())
-      return buildEmptyDevices
+      return buildEmptyStation
 
     }
 
     try {
-
+      /*
+       * This request retrieves the latest values of the
+       * sensor data (temperature, humidity, etc) that
+       * are managed by ThingsBoard
+       */
       val tbAdmin = new TBAdmin()
       if (!tbAdmin.login())
         throw new Exception("Login to ThingsBoard failed.")
 
-      val tbDevices = tbAdmin.getDevices
-      val result = mapper.writeValueAsString(tbDevices)
+      val tbAssetName = req.id
+      val (timestamp, latestValues) = getDeviceLatest(tbAdmin, tbAssetName)
+
       /*
        * Requests to ThingsBoard are finished,
        * so logout and prepare for next login
        */
       tbAdmin.logout()
 
-      result
+      /*
+       * Output format:
+       *
+       * {
+       *  ts: ...,
+       *  values: [
+       *    {
+       *      device: "...",
+       *      values: [
+       *        {
+       *          name: "...",
+       *          value: ...
+       *        }
+       *      ]
+       *    },
+       *  ]
+       * }
+       */
+      val mockValues = AirqOptions.getPollutants(req.id).map(poll => {
+        Map(
+          "device" -> s"DEV.${poll.toUpperCase()}",
+          "values" -> List(
+            Map("name" -> poll, "value" -> 10)
+          )
+        )
+      })
+
+      val output = Map("ts" -> timestamp, "values" -> mockValues)
+      mapper.writeValueAsString(output)
 
     } catch {
       case t:Throwable =>
-        error(Messages.failedDevicesReq(t))
-        buildEmptyDevices
+        error(Messages.failedStationReq(t))
+        buildEmptyStation
     }
 
   }
-
 }

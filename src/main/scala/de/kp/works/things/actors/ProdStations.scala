@@ -20,11 +20,13 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
-import de.kp.works.things.ttn.TTNAdmin
-
-class TTNDevices extends BaseActor {
-
-  private val ttnAdmin = new TTNAdmin()
+import de.kp.works.things.prod.ProdOptions
+/**
+ * This actor receives all pre-defined production
+ * stations (or locations); note, each station is
+ * associated with a set of devices or sensors.
+ */
+class ProdStations extends BaseActor {
 
   /**
    * __fault__resilient
@@ -35,29 +37,26 @@ class TTNDevices extends BaseActor {
     if (json == null) {
 
       warn(Messages.invalidJson())
-      return buildEmptyDevices
+      return buildEmptyStations
 
     }
 
-    val req = mapper.readValue(json.toString, classOf[TTNDevicesReq])
+    val req = mapper.readValue(json.toString, classOf[ProdStationsReq])
 
     if (req.secret.isEmpty || req.secret != secret) {
 
       warn(Messages.unauthorizedReq())
-      return buildEmptyDevices
+      return buildEmptyStation
 
     }
+    /*
+     * This request retrieves the pre-defined production stations
+     * (see configuration file)
+     */
+    val stations = ProdOptions.getStations
+    val result = mapper.writeValueAsString(stations)
 
-    try {
-
-      val ttnDevices = ttnAdmin.getDevices
-      mapper.writeValueAsString(ttnDevices)
-
-    } catch {
-      case t:Throwable =>
-        error(Messages.failedDevicesReq(t))
-        buildEmptyDevices
-    }
+    result
 
   }
 }
