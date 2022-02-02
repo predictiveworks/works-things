@@ -21,28 +21,15 @@ package de.kp.works.things.prod
 
 import akka.actor.{ActorSystem, Props}
 import akka.stream.ActorMaterializer
+import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb.TBProducer
 import de.kp.works.things.ttn.{TTNAdmin, TTNConsumer, TTNDevice}
 
+import java.util.concurrent.{ExecutorService, Executors}
 import scala.concurrent.ExecutionContextExecutor
 import scala.collection.mutable
 
-object ProdConsumer {
-
-  private var instance:Option[ProdConsumer] = None
-
-  def getInstance():ProdConsumer = {
-
-    if (instance.isEmpty)
-      instance = Some(new ProdConsumer)
-
-    instance.get
-
-  }
-
-}
-
-class ProdConsumer extends ProdBase {
+class ProdMonitor(numThreads:Int = 1) extends Logging {
 
   private val uuid = java.util.UUID.randomUUID.toString
   /**
@@ -51,10 +38,48 @@ class ProdConsumer extends ProdBase {
    * available. This avoids leaking materializers and simplifies most stream
    * use cases somewhat.
    */
-  implicit val prodSystem: ActorSystem = ActorSystem(s"prod-system-$uuid")
-  implicit lazy val prodContext: ExecutionContextExecutor = prodSystem.dispatcher
+  implicit val system: ActorSystem = ActorSystem(s"prod-monitor-$uuid")
+  implicit lazy val context: ExecutionContextExecutor = system.dispatcher
 
-  implicit val prodMaterializer: ActorMaterializer = ActorMaterializer()
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+
+  private var executorService:ExecutorService = _
+  private val consumer = new ProdConsumer(system)
+
+  def start():Unit = {
+
+    val worker = new Runnable {
+
+      override def run(): Unit = {
+        info(s"Prod Consumer started.")
+        consumer.extractRooms()
+      }
+    }
+
+    try {
+
+      executorService = Executors.newFixedThreadPool(numThreads)
+      executorService.execute(worker)
+
+    } catch {
+      case t:Exception =>
+        error(s"Prod Monitor failed with: ${t.getLocalizedMessage}")
+        stop()
+    }
+
+  }
+
+  def stop():Unit = {
+
+    executorService.shutdown()
+    executorService.shutdownNow()
+
+    system.terminate()
+  }
+
+}
+
+class ProdConsumer(prodSystem:ActorSystem) extends ProdBase {
   /**
    * The production consumer listens to TTN devices that are associated
    * to assets that reference production rooms.
@@ -66,38 +91,13 @@ class ProdConsumer extends ProdBase {
 
   private val ttnConsumers = mutable.HashMap.empty[String, TTNConsumer]
   /**
-   * A flag that determines whether this consumer is retrieving
-   * values from the ThingsNetwork MQTT broker for the configured
-   * production stations and their devices
-   */
-  private var consuming = true
-  /**
-   * This consumer is running for ever (until it is stopped
-   * explicitly) and leverages the TTN devices and rooms that
-   * are known before starting.
-   *
-   * This implementation requires to restart the Things server
-   * after new TTN devices having been registered.
-   */
-  def start():Unit = {
-
-    extractRooms()
-    while(consuming) {}
-
-    stop()
-
-  }
-
-  def stop():Unit = {
-    consuming = false
-    prodSystem.terminate
-  }
-  /**
    * This method runs only once (in contrast to
    * `airq` and `owea` use cases; therefore, the
    * actors are created by never released
    */
   def extractRooms():Unit = {
+
+    println("Prod Consumer: extractRooms")
     /*
      * Move through all configured production rooms,
      * create actor for each device associated with a

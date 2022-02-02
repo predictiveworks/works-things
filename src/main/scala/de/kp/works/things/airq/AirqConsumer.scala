@@ -22,28 +22,15 @@ package de.kp.works.things.airq
 import akka.actor.{ActorSystem, Props}
 import akka.stream.ActorMaterializer
 import de.kp.works.things.http.HttpConnect
+import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb._
 
 import java.io.{BufferedWriter, File, FileWriter}
+import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 import scala.collection.mutable
 import scala.concurrent.ExecutionContextExecutor
 
-object AirqConsumer {
-
-  private var instance:Option[AirqConsumer] = None
-
-  def getInstance():AirqConsumer = {
-
-    if (instance.isEmpty)
-      instance = Some(new AirqConsumer)
-
-    instance.get
-
-  }
-
-}
-
-class AirqConsumer extends HttpConnect with AirqTransform {
+class AirqMonitor(numThreads:Int = 1) extends Logging {
 
   private val uuid = java.util.UUID.randomUUID.toString
   /**
@@ -52,64 +39,69 @@ class AirqConsumer extends HttpConnect with AirqTransform {
    * available. This avoids leaking materializers and simplifies most stream
    * use cases somewhat.
    */
-  implicit val airqSystem: ActorSystem = ActorSystem(s"airq-system-$uuid")
-  implicit lazy val airqContext: ExecutionContextExecutor = airqSystem.dispatcher
+  implicit val system: ActorSystem = ActorSystem(s"airq-monitor-$uuid")
+  implicit lazy val context: ExecutionContextExecutor = system.dispatcher
 
-  implicit val airqMaterializer: ActorMaterializer = ActorMaterializer()
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+  /**
+   * The configured time interval the consumer task
+   * is executed
+   */
+  private val interval = AirqOptions.getTimeInterval
+
+  private var executorService:ScheduledExecutorService = _
+  private val consumer = new AirqConsumer(system)
+
+  def start():Unit = {
+
+    val worker = new Runnable {
+
+      override def run(): Unit = {
+        info(s"Airq Consumer started.")
+        consumer.extractStations()
+      }
+    }
+
+    try {
+
+      executorService = Executors.newScheduledThreadPool(numThreads)
+      executorService.scheduleAtFixedRate(worker, 0, interval, TimeUnit.MILLISECONDS)
+
+    } catch {
+      case t:Exception =>
+        error(s"Airq Monitor failed with: ${t.getLocalizedMessage}")
+        stop()
+    }
+
+  }
+
+  def stop():Unit = {
+
+    executorService.shutdown()
+    executorService.shutdownNow()
+
+    system.terminate()
+  }
+
+}
+
+class AirqConsumer(airqSystem:ActorSystem) extends HttpConnect with AirqTransform with Logging {
 
   private val apiUrl = AirqOptions.getBaseUrl
-  private val interval = AirqOptions.getTimeInterval
 
   private val country = AirqOptions.getCountry
   private val pollutants = AirqOptions.getPollutants
 
   private val folder = AirqOptions.getFolder
   private val stations = AirqOptions.getStations
-  /**
-   * A flag that determines whether this consumer is retrieving
-   * values from the [AirQuality] API for the configured weather
-   * stations and their devices
-   */
-  private var consuming = true
-  /**
-   * The timestamp that determine when the last weather data where
-   * retrieved from the AirQuality API
-   */
-  private var lastTs = 0L
-
-  def start(): Unit = {
-
-    while (consuming) {
-
-      if (lastTs == 0L) {
-        extractStations()
-      }
-      else {
-
-        if (System.currentTimeMillis - lastTs < interval) {
-          extractStations()
-        }
-
-      }
-    }
-
-  }
-
-  def stop(): Unit = {
-    consuming = false
-    airqSystem.terminate()
-  }
-  /**
+ /**
    * This method is responsible for extracting all
    * pollutant timeseries organized by pollutant
    * and respective qir quality station
    */
   def extractStations():Unit = {
-    /*
-     * Register the timestamp in milliseconds, the pollutant
-     * data are retrieved from the [AirQuality] API
-     */
-    lastTs = System.currentTimeMillis
+
+    println("Airq Consumer: extractStations")
 
     val data = mutable.ArrayBuffer.empty[Seq[AirqPollutant]]
     /*
@@ -195,7 +187,7 @@ class AirqConsumer extends HttpConnect with AirqTransform {
    * This is the main method that retrieves that actual
    * pollutant data for the provided and configured country
    */
-  def download(pollutant:String):Seq[AirqPollutant] = {
+  private def download(pollutant:String):Seq[AirqPollutant] = {
 
     val key = s"${country}_$pollutant"
     val url = s"$apiUrl/$key.csv"
@@ -226,7 +218,6 @@ class AirqConsumer extends HttpConnect with AirqTransform {
     data
 
   }
-
 }
 
 

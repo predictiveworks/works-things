@@ -19,14 +19,51 @@ package de.kp.works.things.server
  *
  */
 
-import de.kp.works.things.airq.AirqManager
+import de.kp.works.things.airq.{AirqManager, AirqMonitor}
 import de.kp.works.things.logging.Logging
-import de.kp.works.things.owea.OweaManager
-import de.kp.works.things.prod.ProdManager
+import de.kp.works.things.owea.{OweaManager, OweaMonitor}
+import de.kp.works.things.prod.{ProdManager, ProdMonitor}
 
 object ThingsStartup extends Logging {
 
-  def activeConsumers():Boolean = ???
+  def activeConsumers():Boolean = {
+
+    var success:Boolean = true
+    try {
+      /*
+       * STEP #1: Start consumption of data from
+       * pre-defined Air Quality stations
+       */
+      info(s"Consumption of Air Quality stations: started")
+
+      val airqMonitor = new AirqMonitor()
+      airqMonitor.start()
+      /*
+       * STEP #2: Start consumption of data from
+       * pre-defined Weather stations
+       */
+      info(s"Consumption of Weather stations: started")
+
+      val oweaMonitor = new OweaMonitor()
+      oweaMonitor.start()
+      /*
+       * STEP #3: Start consumption of data from
+       * pre-defined Production stations
+       */
+      info(s"Consumption of Production stations: started")
+
+      val prodMonitor = new ProdMonitor()
+      prodMonitor.start()
+
+    } catch {
+      case t:Throwable =>
+        error(s"Activating consumers failed with: ${t.getLocalizedMessage}")
+        success = false
+    }
+
+    success
+
+  }
 
   /**
    * This method is invoked during the startup
@@ -82,7 +119,7 @@ object ThingsStartup extends Logging {
     info(s"Create Production stations: started")
 
     val prodManager = new ProdManager()
-    if (success) prodManager.createStationsIfNotExist()
+    success = prodManager.createStationsIfNotExist()
 
     if (success) info(s"Create Production stations: finished")
     else {

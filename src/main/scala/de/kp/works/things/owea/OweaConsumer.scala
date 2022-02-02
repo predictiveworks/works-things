@@ -24,20 +24,64 @@ import akka.stream.ActorMaterializer
 import com.google.gson.{JsonElement, JsonObject}
 import de.kp.works.things.http.HttpConnect
 import de.kp.works.things.json.JsonUtil
+import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb._
 
+import java.util.concurrent.{ExecutorService, Executors, ScheduledExecutorService, TimeUnit}
 import scala.concurrent.ExecutionContextExecutor
 
-object OweaConsumer {
+class OweaMonitor(numThreads:Int = 1) extends Logging {
 
-  private var instance:Option[OweaConsumer] = None
+  private val uuid = java.util.UUID.randomUUID.toString
+  /**
+   * Akka 2.6 provides a default materializer out of the box, i.e., for Scala
+   * an implicit materializer is provided if there is an implicit ActorSystem
+   * available. This avoids leaking materializers and simplifies most stream
+   * use cases somewhat.
+   */
+  implicit val system: ActorSystem = ActorSystem(s"owea-monitor-$uuid")
+  implicit lazy val context: ExecutionContextExecutor = system.dispatcher
 
-  def getInstance():OweaConsumer = {
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+  /**
+   * The configured time interval the consumer task
+   * is executed
+   */
+  private val interval =OweaOptions.getTimeInterval
 
-    if (instance.isEmpty)
-      instance = Some(new OweaConsumer)
+  private var executorService:ScheduledExecutorService = _
+  private val consumer = new OweaConsumer(system)
 
-    instance.get
+  def start():Unit = {
+
+    val worker = new Runnable {
+
+      override def run(): Unit = {
+        info(s"Owea Consumer started.")
+        consumer.extractStations()
+      }
+    }
+
+    try {
+
+      executorService = Executors.newScheduledThreadPool(numThreads)
+      executorService.scheduleAtFixedRate(worker, 0, interval, TimeUnit.MILLISECONDS)
+
+
+    } catch {
+      case t:Exception =>
+        error(s"Owea Monitor failed with: ${t.getLocalizedMessage}")
+        stop()
+    }
+
+  }
+
+  def stop():Unit = {
+
+    executorService.shutdown()
+    executorService.shutdownNow()
+
+    system.terminate()
 
   }
 
@@ -54,71 +98,18 @@ object OweaConsumer {
  * as an independent devices and therefore leverages the
  * ThingsBoard Device API to publish weather data.
  */
-class OweaConsumer extends HttpConnect with JsonUtil {
-
-  private val uuid = java.util.UUID.randomUUID.toString
-  /**
-   * Akka 2.6 provides a default materializer out of the box, i.e., for Scala
-   * an implicit materializer is provided if there is an implicit ActorSystem
-   * available. This avoids leaking materializers and simplifies most stream
-   * use cases somewhat.
-   */
-  implicit val oweaSystem: ActorSystem = ActorSystem(s"owea-system-$uuid")
-  implicit lazy val oweaContext: ExecutionContextExecutor = oweaSystem.dispatcher
-
-  implicit val oweaMaterializer: ActorMaterializer = ActorMaterializer()
+class OweaConsumer(oweaSystem:ActorSystem) extends HttpConnect with JsonUtil with Logging {
 
   private val apiUrl = OweaOptions.getBaseUrl
   private val apiKey = OweaOptions.getApiKey
 
-  private val interval = OweaOptions.getTimeInterval
   private val stations = OweaOptions.getStations
-  /**
-   * A flag that determines whether this consumer is retrieving
-   * values from the [OpenWeather] API for the configured weather
-   * stations and their devices
-   */
-  private var consuming = true
-  /**
-   * The timestamp that determine when the last weather data where
-   * retrieved from the OpenWeather API
-   */
-  private var lastTs = 0L
-  /**
-   * The sleep time in milli seconds between 2 requests to the
-   * [OpenWeather] API
-   */
-  private val sleep = 500
+  private val sleep = 1000
 
-  def start():Unit = {
+  def extractStations():Unit = {
 
-    while (consuming) {
+    println("Airq Consumer: extractStations")
 
-      if (lastTs == 0L) {
-        extractStations()
-      }
-      else {
-
-        if (System.currentTimeMillis - lastTs < interval) {
-          extractStations()
-        }
-
-      }
-    }
-
-  }
-
-  def stop():Unit = {
-    consuming = false
-    oweaSystem.terminate()
-  }
-
-  private def extractStations():Unit = {
-    /*
-     * Register the timestamp in milliseconds, the weather
-     * data are retrieved from the [OpenWeather] API
-     */
-    lastTs = System.currentTimeMillis
     /*
      * Move through all configured weather stations and
      * retrieve the corresponding weather data
@@ -169,7 +160,7 @@ class OweaConsumer extends HttpConnect with JsonUtil {
 
   }
 
-  def extractStation(station:OweaStation, deviceSpec:Map[String, Any], weather:JsonObject):Unit = {
+  private def extractStation(station:OweaStation, deviceSpec:Map[String, Any], weather:JsonObject):Unit = {
     /*
      * Transform wind data into TBRecord
      */
@@ -203,7 +194,7 @@ class OweaConsumer extends HttpConnect with JsonUtil {
 
   }
 
-  def getByCityName(cityName:String):JsonElement = {
+  private def getByCityName(cityName:String):JsonElement = {
 
     val endpoint = s"${apiUrl}q={$cityName}&appid=$apiKey"
 
@@ -215,7 +206,7 @@ class OweaConsumer extends HttpConnect with JsonUtil {
 
   }
 
-  def getByLatLon(lat:Double, lon:Double):JsonElement = {
+  private def getByLatLon(lat:Double, lon:Double):JsonElement = {
 
     val endpoint = s"${apiUrl}lat=$lat&lon=$lon&appid=$apiKey"
 

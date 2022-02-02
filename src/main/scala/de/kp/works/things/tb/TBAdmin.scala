@@ -452,10 +452,9 @@ class TBAdmin extends TBClient with Logging {
       result
 
     } catch {
-      case t:Throwable => {
+      case t:Throwable =>
         error(t.getLocalizedMessage)
         Seq.empty[String]
-      }
     }
 
   }

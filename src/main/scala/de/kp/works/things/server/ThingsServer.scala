@@ -23,8 +23,19 @@ object ThingsServer extends BaseServer {
 
   override var programName: String = "ThingsServer"
   override var programDesc: String = "Connect multiple data sources to a ThingsBoard server."
+  /*
+   * In case of a deployed `Things` server, the file system
+   * path to the configuration folder is provided as system
+   * property `config.dir`
+   */
+  private val configDir = System.getProperty("config.dir")
+  private val cFile =
+    if (configDir != null) Some(s"$configDir/reference.conf") else None
 
-  override protected var configFile: Option[String] = None
+  private val mFile =
+    if (configDir != null) Some(s"$configDir/mappings.conf") else None
+
+  override protected var configFile: Option[String] = cFile
   /**
    * The name of the external file that contains all
    * (client) attribute mappings between backend and
@@ -34,7 +45,7 @@ object ThingsServer extends BaseServer {
    * frontend attribute names for different TTN device
    * attributes.
    */
-  override protected var mappingsFile: Option[String] = None
+  override protected var mappingsFile: Option[String] = mFile
 
   override def launch(args: Array[String]): Unit = {
 

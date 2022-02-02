@@ -52,20 +52,20 @@ trait BaseService extends Logging {
 
   def buildRoute:Route
 
-  def start(conf:Option[String], mappings:Option[String]):Unit = {
+  def start(configuration:Option[String], mappings:Option[String]):Unit = {
 
     try {
       /*
        * Initialize the overall configuration
        */
-      ThingsConf.init(conf)
+      ThingsConf.init(configuration)
       if (!ThingsConf.isInit) {
         throw new Exception(s"Loading configuration failed and service is not started.")
       }
       /*
        * Initialize the attribute mappings
        */
-      MappingsConf.init(conf)
+      MappingsConf.init(mappings)
       if (!MappingsConf.isInit) {
         throw new Exception(s"Loading mappings failed and service is not started.")
       }
