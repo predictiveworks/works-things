@@ -86,19 +86,6 @@ case class DeviceEntry(
 
 object DeviceRegistry {
 
-  private var instance:Option[DeviceRegistry] = None
-
-  def getInstance:DeviceRegistry = {
-
-    if (instance.isEmpty) instance = Some(new DeviceRegistry())
-    instance.get
-
-  }
-}
-
-
-class DeviceRegistry {
-
   private val folder = RepositoryOptions.getFolder
   private val registry = mutable.HashMap.empty[String, DeviceEntry]
   /**
@@ -113,28 +100,54 @@ class DeviceRegistry {
     val source = scala.io.Source
       .fromFile(new java.io.File(filePath))
 
-    val devices = source.getLines
+    val devices = source.getLines.toList
+
     devices.foreach(device => {
 
-      val Array(
-        datasource,
-        tbDeviceId,
-        tbDeviceName,
-        tbDeviceToken,
-        tbMqttTopic,
-        ttnDeviceId,
-        ttnMqttTopic
-      ) = device.split(",")
+      val length = device.split(",").length
+      val deviceEntry = if (length == 5) {
 
-      val deviceEntry = DeviceEntry(
+        val Array(
+          datasource,
+          tbDeviceId,
+          tbDeviceName,
+          tbDeviceToken,
+          tbMqttTopic) = device.split(",")
+
+        DeviceEntry(
+          datasource,
+          tbDeviceId,
+          tbDeviceName,
+          tbDeviceToken,
+          tbMqttTopic,
+          "",
+          ""
+        )
+
+      } else if (length == 7) {
+
+        val Array(
         datasource,
         tbDeviceId,
         tbDeviceName,
         tbDeviceToken,
         tbMqttTopic,
         ttnDeviceId,
-        ttnMqttTopic
-      )
+        ttnMqttTopic) = device.split(",")
+
+        DeviceEntry(
+          datasource,
+          tbDeviceId,
+          tbDeviceName,
+          tbDeviceToken,
+          tbMqttTopic,
+          ttnDeviceId,
+          ttnMqttTopic
+        )
+
+      } else {
+        throw new Exception(s"Corrupted device registry detected.")
+      }
 
       registry += deviceEntry.tbDeviceName -> deviceEntry
 

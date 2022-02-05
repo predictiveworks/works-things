@@ -22,6 +22,7 @@ package de.kp.works.things.ttn
 import akka.actor.ActorRef
 import com.google.gson.{JsonElement, JsonParser}
 import de.kp.works.things.devices.DeviceRegistry
+import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb.{TBColumn, TBJob, TBRecord, TBTimeseries}
 import org.eclipse.paho.client.mqttv3.{IMqttDeliveryToken, MqttCallback, MqttClient, MqttMessage}
 
@@ -32,10 +33,9 @@ import scala.collection.JavaConversions._
  * of TheThingsNetwork MQTT broker and sends the
  * transformed result to the ThingsBoard server
  */
-class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) {
+class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) extends Logging {
 
-  private val registry = DeviceRegistry.getInstance
-  private val tbDeviceEntry = registry.get(tbDeviceName)
+  private val tbDeviceEntry = DeviceRegistry.get(tbDeviceName)
 
   private val mqttClient: Option[MqttClient] = buildMqttClient
 
@@ -74,10 +74,7 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) {
     if (mqttClient.isEmpty) buildMqttClient
 
     if (tbDeviceEntry.isEmpty) {
-
-      val now = new java.util.Date()
-      println(
-        s"[ERROR] $now.toString - No device registry entry found for `$tbDeviceName`.")
+      error(s"No device registry entry found for `$tbDeviceName`.")
 
     }
     else {
@@ -91,16 +88,11 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) {
       mqttClient.get.connect(mqttOptions)
 
       if (!mqttClient.get.isConnected) {
-
-        val now = new java.util.Date()
-        println(
-          s"[ERROR] $now.toString - TTN Consumer could not connect to The ThingsNetwork.")
+        error(s"TTN Consumer could not connect to The ThingsNetwork.")
 
       }
       else {
-
-        val now = new java.util.Date()
-        println(s"[INFO] $now.toString - TTN Consumer is connected to The ThingsNetwork.")
+        error(s"TTN Consumer is connected to The ThingsNetwork.")
 
         val mqttTopic = tbDeviceEntry.get.ttnMqttTopic
         mqttClient.get.subscribe(mqttTopic, TTNOptions.getQos)
@@ -112,9 +104,7 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) {
   }
 
   def restart(t:Throwable): Unit = {
-
-    val now = new java.util.Date()
-    println(s"[WARN] $now - TTN Consumer restart due to: ${t.getLocalizedMessage}")
+    warn(s"TTN Consumer restart due to: ${t.getLocalizedMessage}")
 
     subscribeAndPublish()
 
@@ -125,8 +115,7 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) {
     if (mqttClient.isEmpty) return
     mqttClient.get.disconnect()
 
-    val now = new java.util.Date()
-    println(s"[INFO] $now.toString - TTN Consumer is disconnected from TheThingsNetwork.")
+    info(s"TTN Consumer is disconnected from The ThingsNetwork.")
 
   }
   /**

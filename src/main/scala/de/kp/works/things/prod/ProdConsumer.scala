@@ -79,7 +79,7 @@ class ProdMonitor(numThreads:Int = 1) extends Logging {
 
 }
 
-class ProdConsumer(prodSystem:ActorSystem) extends ProdBase {
+class ProdConsumer(prodSystem:ActorSystem) extends ProdBase with Logging {
   /**
    * The production consumer listens to TTN devices that are associated
    * to assets that reference production rooms.
@@ -97,7 +97,7 @@ class ProdConsumer(prodSystem:ActorSystem) extends ProdBase {
    */
   def extractRooms():Unit = {
 
-    println("Prod Consumer: extractRooms")
+    info(s"Prod consumer: Extract data from [ThingsNetwork]")
     /*
      * Move through all configured production rooms,
      * create actor for each device associated with a
@@ -108,17 +108,23 @@ class ProdConsumer(prodSystem:ActorSystem) extends ProdBase {
       ttnDevices(room.id).foreach(ttnDevice => {
 
         val tbDeviceName = buildTBDeviceName(ttnDevice.name, room.id)
-        /*
-         * Build device specific actor and provide
-         * actor to the TTN Consumer (MQTT listener)
-         */
-        val tbDeviceActor = prodSystem.actorOf(
-          Props(new TBProducer()), s"$tbDeviceName-actor")
+        try {
+          /*
+           * Build device specific actor and provide
+           * actor to the TTN Consumer (MQTT listener)
+           */
+          val tbDeviceActor = prodSystem.actorOf(
+            Props(new TBProducer()), s"$tbDeviceName-actor")
 
-        val ttnConsumer = new TTNConsumer(tbDeviceName, tbDeviceActor)
-        ttnConsumers += tbDeviceName -> ttnConsumer
+          val ttnConsumer = new TTNConsumer(tbDeviceName, tbDeviceActor)
+          ttnConsumers += tbDeviceName -> ttnConsumer
 
-        ttnConsumer.subscribeAndPublish()
+          ttnConsumer.subscribeAndPublish()
+
+        } catch {
+          case t:Throwable =>
+            error(s"Creating MQTT listener for `$tbDeviceName` failed: ${t.getLocalizedMessage}")
+        }
 
       })
     })

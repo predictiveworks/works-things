@@ -28,9 +28,20 @@ object RepositoryOptions {
    * configuration is not set here
    */
   if (!ThingsConf.isInit) ThingsConf.init()
-
+  /**
+   * Determine the registry folder from the system
+   * property `registry.dir`
+   */
+  private val folder = System.getProperty("registry.dir")
   private val repositoryCfg = ThingsConf.getRepositoryCfg
 
-  def getFolder:String = repositoryCfg.getString("folder")
+  def getFolder:String = {
+
+    if (folder == null)
+      repositoryCfg.getString("folder")
+
+    else folder
+
+  }
 
 }

@@ -108,8 +108,7 @@ class OweaConsumer(oweaSystem:ActorSystem) extends HttpConnect with JsonUtil wit
 
   def extractStations():Unit = {
 
-    println("Airq Consumer: extractStations")
-
+    info(s"Owea consumer: Extract data from [OpenWeather]")
     /*
      * Move through all configured weather stations and
      * retrieve the corresponding weather data
@@ -161,6 +160,7 @@ class OweaConsumer(oweaSystem:ActorSystem) extends HttpConnect with JsonUtil wit
   }
 
   private def extractStation(station:OweaStation, deviceSpec:Map[String, Any], weather:JsonObject):Unit = {
+
     /*
      * Transform wind data into TBRecord
      */
@@ -176,9 +176,12 @@ class OweaConsumer(oweaSystem:ActorSystem) extends HttpConnect with JsonUtil wit
     val tbRecord = TBRecord(timestamp, tbColumns)
 
     val tbTimeseries = TBTimeseries(Seq(tbRecord))
-
     val prefix = deviceSpec("prefix").asInstanceOf[String]
-    val tbDeviceName = s"$prefix.${station.id.replace("STA", "")}}"
+    /*
+     * __MOD__ Remove intermediate `.` between prefix
+     * and station identifier
+     */
+    val tbDeviceName = s"$prefix${station.id.replace("STA", "")}"
     /*
      * Build device specific actor and send TBJob
      * to this actor to publish time series records.
@@ -186,11 +189,18 @@ class OweaConsumer(oweaSystem:ActorSystem) extends HttpConnect with JsonUtil wit
      * This actor is automatically destroyed after
      * the provided TBJob is executed
      */
-    val tbDeviceActor = oweaSystem.actorOf(
-      Props(new TBProducer()), s"$tbDeviceName-actor")
-
     val tbJob = TBJob(tbDeviceName, tbTimeseries)
-    tbDeviceActor ! tbJob
+    try {
+
+      val tbDeviceActor = oweaSystem.actorOf(
+        Props(new TBProducer()), s"$tbDeviceName-actor")
+
+      tbDeviceActor ! tbJob
+
+    } catch {
+      case t:Throwable =>
+        error(s"Sending telemetry data from $tbDeviceName failed: ${t.getLocalizedMessage}")
+    }
 
   }
 

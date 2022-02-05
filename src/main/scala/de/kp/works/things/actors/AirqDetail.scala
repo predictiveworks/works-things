@@ -20,7 +20,6 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
-import de.kp.works.things.mock.TsHistorical
 import de.kp.works.things.tb.TBAdmin
 
 class AirqDetail extends BaseActor {
@@ -62,16 +61,24 @@ class AirqDetail extends BaseActor {
        * The timeseries contains all sensors (keys)
        * that are assigned to the specific devices
        */
-      val tbValues =
+      val tbValues = {
         getDeviceTs(tbAdmin, tbDeviceId, tbKeys, req.sensor)
+        /*
+         * Transform time series into UI format
+         */
+        .map(tbPoint => {
+          Map("date" -> tbPoint.ts, req.sensor -> tbPoint.value)
+        })
+      }
+
       /*
        * Requests to ThingsBoard are finished,
        * so logout and prepare for next login
        */
       tbAdmin.logout()
 
-      val mockValues = TsHistorical.getData(req.sensor)
-      mapper.writeValueAsString(mockValues)
+      val output = mapper.writeValueAsString(tbValues)
+      output
 
     } catch {
       case t:Throwable =>

@@ -89,7 +89,7 @@ trait BaseService extends Logging {
         }
 
       /* After start processing */
-      // onStart()
+      onStart()
 
     } catch {
       case t:Throwable =>

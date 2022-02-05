@@ -77,7 +77,14 @@ class ProdManager extends ProdBase with Logging {
        * that have not been created already
        */
       val tbAssetNames = tbAssets.map(a => a.getName)
-      val filteredStations = stations.filter(s => !tbAssetNames.contains(s.name))
+      /*
+       * __MOD__ The asset names provided by ThingsBoard
+       * refer to the pre-configured station identifiers
+       */
+      val filteredStations = stations.filter(s => !tbAssetNames.contains(s.id))
+      if (filteredStations.isEmpty)
+        info(s"All configured production stations exist already.")
+
       /*
        * STEP #4: Create remaining stations
        * as ThingsBoard assets
@@ -193,7 +200,13 @@ class ProdManager extends ProdBase with Logging {
        * that have not been created already
        */
       val tbAssetNames = tbAssets.map(a => a.getName)
-      val filteredRooms = rooms.filter(room => !tbAssetNames.contains(room.name))
+      /*
+       * __MOD__ The asset names provided by ThingsBoard
+       * refer to the pre-configured room identifiers
+       */
+      val filteredRooms = rooms.filter(room => !tbAssetNames.contains(room.id))
+      if (filteredRooms.isEmpty)
+        info(s"All configured production rooms exist already.")
       /*
        * The list of all successfully created rooms
        */

@@ -67,7 +67,13 @@ class AirqManager extends Logging {
        * that have not been created already
        */
       val tbAssetNames = tbAssets.map(a => a.getName)
-      val filteredStations = stations.filter(s => !tbAssetNames.contains(s.name))
+      /*
+       * __MOD__ The asset names provided by ThingsBoard
+       * refer to the pre-configured room identifiers
+       */
+      val filteredStations = stations.filter(s => !tbAssetNames.contains(s.id))
+      if (filteredStations.isEmpty)
+        info(s"All configured air quality stations exist already.")
       /*
        * STEP #5: Create remaining Air Quality stations
        * as ThingsBoard assets
@@ -131,8 +137,11 @@ class AirqManager extends Logging {
 
             val devicePrefix =
               if (sensor == "pm25") "DEV.PM2.5" else s"DEV.${sensor.toUpperCase}"
-
-            val deviceName = s"$devicePrefix.${station.id.replace("STA", "")}"
+            /*
+             * __MOD__ Remove intermediate `.` between prefix
+             * and station identifier
+             */
+            val deviceName = s"$devicePrefix${station.id.replace("STA", "")}"
 
             val deviceType =
               if (sensor == "pm25") "PM2.5 Sensor" else s"${sensor.toUpperCase} Sensor"

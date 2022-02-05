@@ -25,7 +25,7 @@ import de.kp.works.things.http.HttpConnect
 import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb._
 
-import java.io.{BufferedWriter, File, FileWriter}
+import java.io.FileWriter
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 import scala.collection.mutable
 import scala.concurrent.ExecutionContextExecutor
@@ -101,7 +101,7 @@ class AirqConsumer(airqSystem:ActorSystem) extends HttpConnect with AirqTransfor
    */
   def extractStations():Unit = {
 
-    println("Airq Consumer: extractStations")
+    info(s"Airq consumer: Extract data from [EEA Europe].")
 
     val data = mutable.ArrayBuffer.empty[Seq[AirqPollutant]]
     /*
@@ -116,6 +116,9 @@ class AirqConsumer(airqSystem:ActorSystem) extends HttpConnect with AirqTransfor
 
     pollutants.foreach(pollutant =>
       data += download(pollutant))
+
+    info(s"Airq consumer: Pollutant download finished.")
+
     /*
      * STEP #2: The current implementation defines
      * an air quality station as a ThingsBoard asset
@@ -174,11 +177,19 @@ class AirqConsumer(airqSystem:ActorSystem) extends HttpConnect with AirqTransfor
            * This actor is automatically destroyed after
            * the provided TBJob is executed
            */
-          val tbDeviceActor = airqSystem.actorOf(
-            Props(new TBProducer()), s"$tbDeviceName-actor")
-
           val tbJob = TBJob(tbDeviceName, tbTimeseries)
-          tbDeviceActor ! tbJob
+          try {
+
+            val tbDeviceActor = airqSystem.actorOf(
+              Props(new TBProducer()), s"$tbDeviceName-actor")
+
+            tbDeviceActor ! tbJob
+
+          } catch {
+            case t:Throwable =>
+              error(s"Sending telemetry data from $tbDeviceName failed: ${t.getLocalizedMessage}")
+          }
+
         }
       }
   }
@@ -189,33 +200,60 @@ class AirqConsumer(airqSystem:ActorSystem) extends HttpConnect with AirqTransfor
    */
   private def download(pollutant:String):Seq[AirqPollutant] = {
 
-    val key = s"${country}_$pollutant"
-    val url = s"$apiUrl/$key.csv"
+    try {
+      val key = s"${country}_$pollutant"
+      val url = s"$apiUrl/$key.csv"
 
-    val headers = Map.empty[String,String]
-    val bytes = get(url, headers)
-    /*
-     * With respect to Austria, we must leverage the
-     * charset below instead of UTF-8; note, the *.csv
-     * download ships with a header line.
-     *
-     * The header is skipped as the format is expected
-     * to be stable.
-     */
-    val lines = extractCsvBody(bytes, charset="ISO-8859-1").tail
-    /*
-     * Transform *.csv format into structured [AirqPollutant]
-     * format and thereby convert values accordingly
-     */
-    val data = transform(lines, key, stations)
+      val headers = Map.empty[String,String]
+      val bytes = get(url, headers)
+      /*
+       * With respect to Austria, we must leverage the
+       * charset below instead of UTF-8; note, the *.csv
+       * download ships with a header line.
+       *
+       * The header is skipped as the format is expected
+       * to be stable.
+       */
+      val lines = extractCsvBody(bytes, charset="ISO-8859-1").tail
+      /*
+       * Transform *.csv format into structured [AirqPollutant]
+       * format and thereby convert values accordingly
+       */
+      val path = folder + s"$key.csv"
+      val data = transform(lines, key, stations, path)
 
-    val output = folder + s"$key.csv"
-    val writer = new BufferedWriter(new FileWriter(new File(output)))
+      val file = new java.io.File(path)
+      if (!file.exists()) file.createNewFile()
+      /*
+       * The current file strategy stores the latest pollutant
+       * value for each air quality station, and overwrites
+       * the previously registered values
+       */
+      val latestValues = data
+        .groupBy(poll => poll.stationId)
+        .map{case(_, values) =>
+          val sorted = values.sortBy(v => v.timestamp)
+          sorted.last
+        }.toList
 
-    data.foreach(item => writer.write(item.toString))
-    writer.close()
+      if (latestValues.nonEmpty) {
+        val writer = new FileWriter(path)
+        latestValues.foreach(item => writer.write(item.toString + "\n"))
 
-    data
+        writer.close()
+      }
+      /*
+       * Finally return the current pollutant data in
+       * ascending order
+       */
+      data
+
+    } catch {
+      case t:Throwable =>
+        t.printStackTrace()
+        error(s"Downloading pollutant data for `$pollutant` failed: ${t.getLocalizedMessage}")
+        Seq.empty[AirqPollutant]
+    }
 
   }
 }

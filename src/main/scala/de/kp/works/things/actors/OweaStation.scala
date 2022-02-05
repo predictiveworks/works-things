@@ -123,7 +123,7 @@ class OweaStation extends BaseActor {
         )
       )
 
-      val output = Map("ts" -> timestamp, "values" -> mockValues)
+      val output = Map("ts" -> timestamp, "values" -> latestValues)
       mapper.writeValueAsString(output)
 
     } catch {

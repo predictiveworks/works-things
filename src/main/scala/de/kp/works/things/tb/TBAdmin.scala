@@ -28,6 +28,7 @@ import org.thingsboard.server.common.data.asset.Asset
 import org.thingsboard.server.common.data.id.{AssetId, CustomerId, DeviceId}
 import org.thingsboard.server.common.data.relation.EntityRelation
 
+import java.util.Calendar
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
@@ -41,9 +42,6 @@ object TBAdmin {
 }
 
 class TBAdmin extends TBClient with Logging {
-
-  private val deviceRegistry = DeviceRegistry.getInstance
-  private val relationRegistry = RelationRegistry.getInstance
 
   private val assetUrl    = "/api/asset"
   private val getAssetUrl   = "/api/tenant/assets?assetName="
@@ -171,7 +169,7 @@ class TBAdmin extends TBClient with Logging {
       ttnMqttTopic  = ttnMqttTopic
     )
 
-    deviceRegistry.register(deviceEntry)
+    DeviceRegistry.register(deviceEntry)
     tbDeviceId
 
   }
@@ -182,7 +180,7 @@ class TBAdmin extends TBClient with Logging {
    * Supported values are `airq`, `owea` and `prod`
    */
   def getDevicesBySource(datasource:String):Seq[DeviceEntry] = {
-    deviceRegistry.getBySource(datasource)
+    DeviceRegistry.getBySource(datasource)
   }
   /**
    * A helper method to create a certain device for a certain
@@ -240,7 +238,7 @@ class TBAdmin extends TBClient with Logging {
       tbMqttTopic   = TBOptions.DEVICE_TELEMETRY_TOPIC
     )
 
-    deviceRegistry.register(deviceEntry)
+    DeviceRegistry.register(deviceEntry)
     tbDeviceId
 
   }
@@ -295,7 +293,7 @@ class TBAdmin extends TBClient with Logging {
       tbFromName = tbAssetName,
       tbToIds    = tbDeviceIds)
 
-    relationRegistry.register(relationEntry)
+    RelationRegistry.register(relationEntry)
 
   }
 
@@ -561,10 +559,15 @@ class TBAdmin extends TBClient with Logging {
      * Note, if `startTs` and `endTs` is not provided, ThingsBoard
      * will return the latest values, as the respective url is the
      * same one. Therefore, `startTs` and `endTs` are required
+     *
+     * __MOD__ Subtracting a month in terms of a long from
+     * the current time millis does not work.
      */
+    val cal = Calendar.getInstance
+    cal.add(Calendar.MONTH, -1)
 
-    val stopTs = System.currentTimeMillis
-    val beginTs = stopTs - 1000 * 60 * 60 * 24 * 30 // A time period of month
+    val beginTs = cal.getTime.getTime
+    val stopTs = System.currentTimeMillis()
 
     val startTs = params.getOrElse("startTs", s"$beginTs").toLong
     deviceUrl = deviceUrl + s"&startTs=$startTs"

@@ -113,7 +113,14 @@ class OweaManager extends Logging {
        * that have not been created already
        */
       val tbDeviceNames = tbAssets.map(a => a.getName)
-      val filteredStations = stations.filter(s => !tbDeviceNames.contains(s.name))
+      /*
+       * __MOD__ The asset names provided by ThingsBoard
+       * refer to the pre-configured station identifiers
+       */
+      val filteredStations = stations.filter(s => !tbDeviceNames.contains(s.id))
+      if (filteredStations.isEmpty)
+        info(s"All configured weather stations exist already.")
+
       /*
        * STEP #5: Create remaining Air Quality stations
        * as assets
@@ -207,15 +214,19 @@ class OweaManager extends Logging {
                * Sample: STA.OWEA.AT.FREUDENAU
                */
               val devicePrefix = sensorObj.get("deviceName").getAsString
-
-              val deviceName = s"$devicePrefix.${station.id.replace("STA", "")}"
+              /*
+               * __MOD__ Remove intermediate `.` between prefix
+               * and station identifier
+               */
+              val deviceName = s"$devicePrefix${station.id.replace("STA", "")}"
               val deviceType = sensorObj.get("deviceType").getAsString
 
               val deviceLabel = sensorObj.get("deviceLabel").getAsString
               val deviceDesc = sensorObj.get("deviceDesc").getAsString
 
-              tbAdmin.createDevice(tbCustomerId, datasource, deviceName, deviceType, deviceLabel, deviceDesc)
+              val tbDeviceId = tbAdmin.createDevice(tbCustomerId, datasource, deviceName, deviceType, deviceLabel, deviceDesc)
 
+              tbDeviceId
             }).toList
           /* ------------------------------
            *

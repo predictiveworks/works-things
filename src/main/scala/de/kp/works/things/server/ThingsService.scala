@@ -92,16 +92,24 @@ class ThingsService extends BaseService {
 
   override def onStart(): Unit = {
     /*
-     * STEP #1: Asset & device handling creates
+     * STEP #1: Load device & relation registry
+     * to provide registered knowledge
+     */
+    var success = ThingsStartup.loadRegistries()
+    if (!success) {
+      throw new Exception(s"Loading of registries failed.")
+    }
+    /*
+     * STEP #2: Asset & device handling creates
      * pre-defined stations, rooms and devices
      * if they do not exist already
      */
-    var success = ThingsStartup.createAssetsIfNotExist()
+    success = ThingsStartup.createAssetsIfNotExist()
     if (!success) {
       throw new Exception(s"Creation of ThingsBoard assets and devices failed.")
     }
     /*
-     * STEP #2: Start all implemented data sensors
+     * STEP #3: Start all implemented data sensors
      * to retrieve device specific real-time data
      * and publish to ThingsBoard
      */

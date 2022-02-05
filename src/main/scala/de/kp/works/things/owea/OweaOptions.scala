@@ -64,6 +64,10 @@ object OweaOptions {
 
     val interval = weatherCfg.getString("interval")
     interval match {
+      case "5m" =>
+        1000 * 60 * 5
+      case "10m" =>
+        1000 * 60 * 10
       case "15m" =>
         1000 * 60 * 15
       case "30m" =>

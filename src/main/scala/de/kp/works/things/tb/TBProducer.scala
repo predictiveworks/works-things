@@ -19,9 +19,10 @@ package de.kp.works.things.tb
  *
  */
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.Actor
 import com.google.gson.JsonObject
 import de.kp.works.things.devices.DeviceRegistry
+import de.kp.works.things.logging.Logging
 import org.eclipse.paho.client.mqttv3.{MqttClient, MqttException, MqttMessage}
 
 case class TBColumn(name:String, value:Double)
@@ -36,9 +37,7 @@ case class TBJob(deviceName:String, deviceSeries:TBTimeseries, actorStop:Boolean
  * message that refer to a certain device to the
  * ThingsBoard server
  */
-class TBProducer extends Actor with ActorLogging {
-
-  private val registry = DeviceRegistry.getInstance
+class TBProducer extends Actor with Logging {
 
   override def receive: Receive = {
 
@@ -47,13 +46,10 @@ class TBProducer extends Actor with ActorLogging {
        * STEP #1: Retrieve access parameters for the provided
        * device from the device registry
        */
-      val deviceEntry = registry.get(deviceName)
+      val deviceEntry = DeviceRegistry.get(deviceName)
       if (deviceEntry.isEmpty) {
 
-        val now = new java.util.Date
-        println(
-          s"[WARN] - $now.toString - Device `$deviceName` is not registered in the device registry.")
-
+        warn(s"Device `$deviceName` is not registered in the device registry.")
         /*
          * Stop this actor as each actor is assigned
          * to a certain device
@@ -79,10 +75,7 @@ class TBProducer extends Actor with ActorLogging {
          */
         if (tbMqttClient == null) {
 
-          val now = new java.util.Date
-          println(
-            s"[WARN] - $now.toString - Device `$deviceName` could not be connected to ThingsBoard broker.")
-
+          warn(s"Device `$deviceName` could not be connected to ThingsBoard broker.")
           /*
            * Stop this actor as each actor is assigned
            * to a certain device
@@ -127,8 +120,7 @@ class TBProducer extends Actor with ActorLogging {
         }
       }
     case _ =>
-      val now = new java.util.Date()
-      println(s"[ERROR] $now.toString - Unknown request for [TBProducer] detected.")
+      error(s"Unknown request for [TBProducer] detected.")
   }
 
   private def buildMqttClient:MqttClient = {
@@ -153,10 +145,7 @@ class TBProducer extends Actor with ActorLogging {
     mqttClient.connect(mqttOptions)
 
     if (mqttClient.isConnected) {
-
-      val now = new java.util.Date()
-      println(s"[INFO] $now.toString - TB Producer is connected to ThingsBoard.")
-
+      info(s"TB Producer is connected to ThingsBoard.")
       mqttClient
 
     }
@@ -170,9 +159,7 @@ class TBProducer extends Actor with ActorLogging {
   private def stop(mqttClient:MqttClient):Unit = {
 
     mqttClient.disconnect()
-
-    val now = new java.util.Date()
-    println(s"[INFO] $now.toString - TB Producer is disconnected from ThingsBoard.")
+    info(s"TB Producer is disconnected from ThingsBoard.")
 
   }
 
@@ -197,9 +184,7 @@ class TBProducer extends Actor with ActorLogging {
         val cause = t.getCause
 
         val message = t.getMessage
-        val now = new java.util.Date()
-
-        println(s"[ERROR] $now.toString - Mqtt publishing failed: Reason=$reasonCode, Cause=$cause, Message=$message")
+        error(s"Mqtt publishing failed: Reason=$reasonCode, Cause=$cause, Message=$message")
 
     }
 

@@ -83,16 +83,7 @@ class AirqStation extends BaseActor {
        *  ]
        * }
        */
-      val mockValues = AirqOptions.getPollutants(req.id).map(poll => {
-        Map(
-          "device" -> s"DEV.${poll.toUpperCase()}",
-          "values" -> List(
-            Map("name" -> poll, "value" -> 10)
-          )
-        )
-      })
-
-      val output = Map("ts" -> timestamp, "values" -> mockValues)
+      val output = Map("ts" -> timestamp, "values" -> latestValues)
       mapper.writeValueAsString(output)
 
     } catch {

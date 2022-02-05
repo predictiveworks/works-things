@@ -57,19 +57,6 @@ case class RelationEntry(
 
 object RelationRegistry {
 
-  private var instance:Option[RelationRegistry] = None
-
-  def getInstance:RelationRegistry = {
-
-    if (instance.isEmpty) instance = Some(new RelationRegistry())
-    instance.get
-
-  }
-}
-
-
-class RelationRegistry {
-
   private val folder = RepositoryOptions.getFolder
   private val registry = mutable.HashMap.empty[String, RelationEntry]
   /**
@@ -88,7 +75,6 @@ class RelationRegistry {
     relations.foreach(relation => {
 
       val tokens = relation.split(",")
-
       val datasource = tokens.head
 
       val tbFromId   = tokens(1)
@@ -107,8 +93,12 @@ class RelationRegistry {
     source.close
 
   }
-  def get(tbFromName:String):Option[RelationEntry] =
+
+  def read(): mutable.Map[String, RelationEntry] = registry
+
+  def get(tbFromName:String):Option[RelationEntry] = {
     registry.get(tbFromName)
+  }
 
   def register(entry:RelationEntry):Unit = {
 

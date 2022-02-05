@@ -30,6 +30,11 @@ object AirqOptions {
    * configuration is not set here
    */
   if (!ThingsConf.isInit) ThingsConf.init()
+  /**
+   * Determine the registry folder from the system
+   * property `downloads.dir`
+   */
+  private val folder = System.getProperty("registry.dir")
 
   private val climateCfg = ThingsConf.getClimateCfg
 
@@ -37,7 +42,14 @@ object AirqOptions {
 
   def getCountry:String = climateCfg.getString("country")
 
-  def getFolder:String = climateCfg.getString("folder")
+  def getFolder:String = {
+
+    if (folder == null)
+      climateCfg.getString("folder")
+
+    else folder
+
+  }
 
   def getPollutants:List[String] = {
     val values = climateCfg.getStringList("pollutants")

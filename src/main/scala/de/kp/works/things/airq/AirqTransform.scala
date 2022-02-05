@@ -85,13 +85,28 @@ trait AirqTransform {
 
   protected val dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
   /*
-   * This internal cache registers the most recent
-   * timestamp and pollutant specific
+   * This internal cache registers the most recent values
+   * per pollutant (covering multiple stations).
+   *
+   * These values are retrieved from the filesystem and
+   * will be stored during each download request.
    */
-  protected val latestValues = mutable.HashMap.empty[String, (Long, AirqPollutant)]
+  protected val latestValues = mutable.HashMap.empty[String, Seq[AirqPollutant]]
 
-  def transform(lines:List[String], key:String, stations:List[AirqStation]):Seq[AirqPollutant] = {
+  def transform(
+    lines:List[String], key:String, stations:List[AirqStation], file:String):Seq[AirqPollutant] = {
 
+    /*
+     * STEP #1: The latest value registered on the
+     * filesystem is loaded and used to fill the
+     * latest (in-memory) values
+     */
+    loadLatest(key, file)
+    /*
+     * STEP #2: Transform `lines` into pollutants
+     * and restrict to those that have not been
+     * registered already
+     */
     val stationIds = stations.map(s => s.id)
     /*
      * The air quality files have the following format:
@@ -143,7 +158,7 @@ trait AirqTransform {
      * As a next step the lines are reduced to those
      * that are relevant for ThingsBoard
      */
-    val reduced = filtered.map(line => {
+    val currentValues = filtered.map(line => {
 
       val tokens = line.split(",")
 
@@ -153,7 +168,7 @@ trait AirqTransform {
       val timestamp =
         if (datetime_updated == 0L) datetime_inserted else datetime_updated
 
-      val pollutant = AirqPollutant(
+      AirqPollutant(
         /* value_timestamp (enriched) */
         timestamp   = timestamp,
         /* pollutant */
@@ -180,40 +195,36 @@ trait AirqTransform {
         units       = tokens(23)
       )
 
-      (timestamp, pollutant)
-
     })
-      .sortBy{case(ts, _) => ts}
     /*
-     * Check whether there are registered last values
-     * for the specified `key` and determine those
-     * lines that must stored
+     * The datasets of two subsequent download
+     * requests overlap; to avoid duplicate keys
+     * within ThingsBoard's postgres database,
+     * the values must be filtered
      */
-    val data = if (latestValues.contains(key)) {
-      /*
-       * This is a follow on request and this requires
-       * a furthermore filtering to limit the retrieved
-       * data to those that are new
-       */
-      val (latestTs, _) = latestValues(key)
-      val limited = reduced
-        .filter{case(ts, _) => ts > latestTs}
-        .sortBy{case(ts, _) => ts}
+    val data = currentValues
+      .groupBy(poll => poll.stationId)
+      .flatMap{case(stationId, values) =>
+        if (latestValues.contains(key)) {
+          /*
+           * Retrieve all recent values for the
+           * respective pollutant (key)
+           */
+          val latestStation = latestValues(key)
+            .filter(poll => poll.stationId == stationId)
 
-      val latestValue = limited.last
-      latestValues += key -> latestValue
+          if (latestStation.isEmpty) values
+          else {
 
-      limited.map(v => v._2)
+            val latestTs = latestStation.head.timestamp
+            values.filter(v => v.timestamp > latestTs)
 
-    }
-    else {
+          }
 
-      val latestValue = reduced.last
-      latestValues += key -> latestValue
-
-      reduced.map(v => v._2)
-
-    }
+        } else {
+          values
+        }
+      }.toList
 
     data
 
@@ -243,4 +254,48 @@ trait AirqTransform {
 
   }
 
+  private def loadLatest(key:String, path:String):Unit = {
+
+    val file = new java.io.File(path)
+    if (!file.exists()) return
+
+    val source = scala.io.Source.fromFile(file)
+
+    val lines = source.getLines().toList
+    val pollutants = lines.map(line => {
+
+      val Array(
+      timestamp,
+      poll_type,
+      longitude,
+      latitude,
+      stationId,
+      stationName,
+      beginTime,
+      endTime,
+      insertTime,
+      updateTime,
+      value,
+      units)  = line.split(",")
+
+      AirqPollutant(
+        timestamp.toLong,
+        poll_type,
+        longitude.toDouble,
+        latitude.toDouble,
+        stationId,
+        stationName,
+        beginTime.toLong,
+        endTime.toLong,
+        insertTime.toLong,
+        updateTime.toLong,
+        value.toDouble,
+        units)
+
+    })
+
+    latestValues += key -> pollutants
+    source.close
+
+  }
 }

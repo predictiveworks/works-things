@@ -20,47 +20,105 @@ package de.kp.works.things.server
  */
 
 import de.kp.works.things.airq.{AirqManager, AirqMonitor}
+import de.kp.works.things.devices.{DeviceRegistry, RelationRegistry}
 import de.kp.works.things.logging.Logging
 import de.kp.works.things.owea.{OweaManager, OweaMonitor}
 import de.kp.works.things.prod.{ProdManager, ProdMonitor}
 
+import scala.collection.mutable
+
 object ThingsStartup extends Logging {
+  /*
+   * The list of supported managers. Supported values
+   * are `airq`, `owea` and `prod`.
+   */
+  private val managers = List("airq")
+  /*
+   * The list of supported consumers. Supported values
+   * are `airq`, `owea` and `prod`.
+   */
+  private val monitors = List("airq")
+
+  def loadRegistries():Boolean = {
+
+    var success:Boolean = true
+    try {
+
+      DeviceRegistry.load()
+      RelationRegistry.load()
+
+    } catch {
+      case t:Throwable =>
+        t.printStackTrace()
+        error(s"Loading registries failed with: ${t.getLocalizedMessage}")
+        success = false
+    }
+
+    success
+  }
 
   def activeConsumers():Boolean = {
 
     var success:Boolean = true
-    try {
-      /*
-       * STEP #1: Start consumption of data from
-       * pre-defined Air Quality stations
-       */
-      info(s"Consumption of Air Quality stations: started")
+    var startedMonitors = mutable.ArrayBuffer.empty[String]
 
-      val airqMonitor = new AirqMonitor()
-      airqMonitor.start()
-      /*
-       * STEP #2: Start consumption of data from
-       * pre-defined Weather stations
-       */
-      info(s"Consumption of Weather stations: started")
+    monitors.foreach(monitor => {
 
-      val oweaMonitor = new OweaMonitor()
-      oweaMonitor.start()
-      /*
-       * STEP #3: Start consumption of data from
-       * pre-defined Production stations
-       */
-      info(s"Consumption of Production stations: started")
+      try {
 
-      val prodMonitor = new ProdMonitor()
-      prodMonitor.start()
+        monitor match {
+          case "airq" =>
+            /*
+             * Start consumption of data from
+             * pre-defined Air Quality stations
+             */
+            val airqMonitor = new AirqMonitor()
+            if (success) {
+              info(s"Consumption of Air Quality stations: started")
+              airqMonitor.start()
 
-    } catch {
-      case t:Throwable =>
-        error(s"Activating consumers failed with: ${t.getLocalizedMessage}")
-        success = false
-    }
+              startedMonitors += "airq"
+            }
 
+          case "owea" =>
+            /*
+             * Start consumption of data from
+             * pre-defined Weather stations
+             */
+            val oweaMonitor = new OweaMonitor()
+            if (success) {
+              info(s"Consumption of Weather stations: started")
+              oweaMonitor.start()
+
+              startedMonitors += "owea"
+            }
+
+          case "prod" =>
+            /*
+              * Start consumption of data from
+              * pre-defined Production stations
+              */
+            val prodMonitor = new ProdMonitor()
+            if (success) {
+              info(s"Consumption of Production stations: started")
+              prodMonitor.start()
+
+              startedMonitors += "prod"
+            }
+
+          case _ =>
+            throw new Exception(s"The monitor `$monitor` is not supported.")
+        }
+
+      } catch {
+        case t:Throwable =>
+          error(s"Activating consumers failed with: ${t.getLocalizedMessage}")
+          success = false
+      }
+
+    })
+
+    info(s"The following monitors have been started: ${startedMonitors.mkString(", ")}")
     success
 
   }
@@ -73,97 +131,86 @@ object ThingsStartup extends Logging {
   def createAssetsIfNotExist():Boolean = {
 
     var success:Boolean = true
-    /*
-     * STEP #1: Create pre-defined Air Quality stations
-     * and associated sensors (see configuration file)
-     * as ThingsBoard assets and  devices if they do not
-     * exist already
-     */
-    info(s"Create Air Quality stations: started")
+    var startedManagers = mutable.ArrayBuffer.empty[String]
 
-    val airqManager = new AirqManager()
-    success = airqManager.createStationsIfNotExist()
+    managers.foreach(manager => {
 
-    if (success) info(s"Create Air Quality stations: finished")
-    else {
-      /*
-       * In case of a startup failure, this method is
-       * aborted and the Things service is informed
-       */
-      return success
-    }
-    /*
-     * STEP #2: Create pre-defined OpenWeather stations
-     * and associated sensors (see configuration file)
-     * as ThingsBoard assets and devices if they do not
-     * exist already
-     */
-    info(s"Create Open Weather stations: started")
+      try {
 
-    val oweaManager = new OweaManager()
-    success = oweaManager.createStationsIfNotExist()
+        manager match {
+          case "airq" =>
+            /*
+             * Create pre-defined Air Quality stations and associated
+             * sensors (see configuration file) as ThingsBoard assets
+             * and  devices if they do not exist already
+             */
+            val airqManager = new AirqManager()
+            if (success) {
+              info(s"Create Air Quality stations: started")
+              success = airqManager.createStationsIfNotExist()
 
-    if (success) info(s"Create Open Weather stations: finished")
-    else {
-      /*
-       * In case of a startup failure, this method is
-       * aborted and the Things service is informed
-       */
-      return success
-    }
-    /*
-     * STEP #3: Create pre-defined Production stations
-     * (see configuration file as ThingsBoard assets
-     * if they do not exist already
-     */
-    info(s"Create Production stations: started")
+              if (success) {
+                info(s"Create Air Quality stations: finished")
+                startedManagers += "airq"
+              }
+            }
+          case "owea" =>
+            /*
+             * Create pre-defined OpenWeather stations and associated
+             * sensors (see configuration file) as ThingsBoard assets
+             * and devices if they do not exist already
+             */
+            val oweaManager = new OweaManager()
+            if (success) {
+              info(s"Create Open Weather stations: started")
+              success = oweaManager.createStationsIfNotExist()
 
-    val prodManager = new ProdManager()
-    success = prodManager.createStationsIfNotExist()
+              if (success) {
+                info(s"Create Open Weather stations: finished")
+                startedManagers += "owea"
+              }
+            }
+          case "prod" =>
+            /*
+             * Create pre-defined Production stations and associated
+             * rooms (see configuration file) and dynamic TTN devices
+             * as ThingsBoard assets and devices if they do not exist
+             * already
+             */
+            val prodManager = new ProdManager()
+            if (success) {
+              info(s"Create Production stations: started")
+              success = prodManager.createStationsIfNotExist()
 
-    if (success) info(s"Create Production stations: finished")
-    else {
-      /*
-       * In case of a startup failure, this method is
-       * aborted and the Things service is informed
-       */
-      return success
-    }
-    /*
-     * STEP #4: Create pre-defined Production rooms
-     * (see configuration file as ThingsBoard assets
-     * if they do not exist already, connect to the
-     * created Production stations, and, create
-     * associated dynamic TTN devices
-     */
-    info(s"Create Production rooms: started")
+              if (success) info(s"Create Production stations: finished")
+            }
+            if (success) {
+              info(s"Create Production rooms: started")
+              success = prodManager.createRoomsIfNotExist()
 
-    success = prodManager.createRoomsIfNotExist()
+              if (success) info(s"Create Production rooms: finished")
+            }
+            if (success) {
+              info(s"Create Production devices: started")
+              success = prodManager.createDevicesIfNotExist()
 
-    if (success) info(s"Create Production rooms: finished")
-    else {
-      /*
-       * In case of a startup failure, this method is
-       * aborted and the Things service is informed
-       */
-      return success
-    }
-    /*
-     * STEP #5: Create TTN devices that are assigned
-     * to the previously generated Production rooms
-     */
-    info(s"Create Production devices: started")
+              if (success) info(s"Create Production devices: finished")
+            }
+            if (success)
+              startedManagers += "prod"
+          case _ =>
+            throw new Exception(s"The manager `$manager` is not supported.")
+        }
 
-    success = prodManager.createDevicesIfNotExist()
+      } catch {
+        case t:Throwable =>
+          error(s"Running managers failed with: ${t.getLocalizedMessage}")
+          success = false
+      }
 
-    if (success) info(s"Create Production devices: finished")
-    else {
-      /*
-       * In case of a startup failure, this method is
-       * aborted and the Things service is informed
-       */
-      return success
-    }
+    })
+
+    info(s"The following managers have been started: ${startedManagers.mkString(", ")}")
     /*
      * Return flag to indicate that the creation of
      * the pre-defined assets and associated devices

@@ -30,10 +30,10 @@ object ThingsServer extends BaseServer {
    */
   private val configDir = System.getProperty("config.dir")
   private val cFile =
-    if (configDir != null) Some(s"$configDir/reference.conf") else None
+    if (configDir != null) Some(s"${configDir}reference.conf") else None
 
   private val mFile =
-    if (configDir != null) Some(s"$configDir/mappings.conf") else None
+    if (configDir != null) Some(s"${configDir}mappings.conf") else None
 
   override protected var configFile: Option[String] = cFile
   /**

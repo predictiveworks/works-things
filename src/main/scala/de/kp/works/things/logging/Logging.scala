@@ -1,6 +1,7 @@
 package de.kp.works.things.logging
 
-import org.slf4j.{Logger, LoggerFactory}
+import ch.qos.logback.classic.Logger
+import org.slf4j.LoggerFactory
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -23,7 +24,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 trait Logging {
 
-  val logger:Logger = LoggerFactory.getLogger(getClass)
+  val logger:Logger = ThingsLogger.getLogger
 
   def info(message:String):Unit = {
     logger.info(s"$message")

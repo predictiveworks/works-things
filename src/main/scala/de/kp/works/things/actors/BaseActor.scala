@@ -67,9 +67,6 @@ abstract class BaseActor extends Actor with Logging {
     val value = actorCfg.getInt("timeout")
     Timeout(value.seconds)
   }
-
-  private val relationRegistry = RelationRegistry.getInstance
-
   /**
    * Parameters to control the handling of failed child actors:
    * it is the number of retries within a certain time window.
@@ -199,7 +196,7 @@ abstract class BaseActor extends Actor with Logging {
 
   def getDeviceIds(tbAssetName:String):List[String] = {
 
-    val relationEntry = relationRegistry.get(tbAssetName)
+    val relationEntry = RelationRegistry.get(tbAssetName)
     if (relationEntry.isEmpty) return List.empty[String]
 
     relationEntry.get.tbToIds
@@ -217,7 +214,6 @@ abstract class BaseActor extends Actor with Logging {
      * device identifiers from the relation registry
      */
     val tbDeviceIds = getDeviceIds(tbAssetName)
-
     val latestTs = mutable.ArrayBuffer.empty[Long]
     val latestVs = mutable.ArrayBuffer.empty[(String,String,Double)]
 
