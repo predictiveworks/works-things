@@ -1,4 +1,4 @@
-package de.kp.works.things
+package de.kp.works.things.slack
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -21,13 +21,13 @@ package de.kp.works.things
 
 import com.typesafe.config.{Config, ConfigFactory}
 
-object ThingsConf {
+object SlackConf {
 
-  private val path = "reference.conf"
+  private val path = "slack.conf"
   /**
-   * This is the reference to the overall configuration
-   * file that holds all configuration required for this
-   * application
+   * This is the reference to the Slack configuration
+   * file that holds all Slack access parameters and
+   * metadata of the Pilzdinge app
    */
   private var cfg: Option[Config] = None
 
@@ -65,34 +65,19 @@ object ThingsConf {
     cfg.isDefined
   }
 
-  def getActorCfg: Config = getCfg("actor")
+  def getAppCfg: Config = getCfg("slackApp")
 
-  def getBindingCfg: Config = getCfg("binding")
+  def getBotCfg: Config = {
 
-  def getClimateCfg: Config = getCfg("climate")
+    val appCfg = getAppCfg
+    appCfg.getConfig("appBot")
 
-  def getImagesCfg: Config = getCfg("images")
-
-  def getLoggingCfg: Config = getCfg("logging")
-
-  def getProductionCfg: Config = getCfg("production")
-
-  def getRepositoryCfg: Config = getCfg("repository")
-
-  def getSecurityCfg: Config = getCfg("security")
-
-  def getTBCfg: Config = getCfg("thingsboard")
-
-  def getTTNCfg: Config = getCfg("thingsnetwork")
-
-  def getWeatherCfg: Config = getCfg("weather")
+  }
 
   def getCfg(name:String): Config = {
 
-    val now = new java.util.Date().toString
-
     if (cfg.isEmpty)
-      throw new Exception(s"[ERROR] $now - Configuration not initialized.")
+      throw new Exception(s"Configuration not initialized.")
 
     cfg.get.getConfig(name)
 

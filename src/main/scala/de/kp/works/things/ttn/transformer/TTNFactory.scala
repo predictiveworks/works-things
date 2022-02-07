@@ -1,6 +1,4 @@
-package de.kp.works.things.prod
-
-import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
+package de.kp.works.things.ttn.transformer
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -21,21 +19,25 @@ import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
  *
  */
 
-trait ProdBase {
+object TTNFactory {
 
-  def buildTBDeviceName(deviceName:String, assetName:String):String = {
+  def getTTNTransform(ttnDeviceId:String):Option[TTNTransform] = {
 
-    val devicePrefix = s"DEV.${deviceName.replace(" ", "-").toUpperCase}"
-    val tbDeviceName = {
-      /*
-       * Remove the prefix from the room identifier
-       * and replace by the device prefix
-       */
-      val tokens = Array(devicePrefix) ++assetName.split("\\.").tail
-      tokens.mkString(".")
+    val company = TTNIdentity
+      .getBrandById(ttnDeviceId)
+
+    if (company.isEmpty) None
+    else {
+      company.get match {
+        case TTNIdentity.MILESIGHT =>
+          Some(new Milesight())
+
+        case TTNIdentity.SENSECAP =>
+          Some(new SenseCAP())
+
+        case _ => None
+      }
     }
-
-    tbDeviceName
 
   }
 

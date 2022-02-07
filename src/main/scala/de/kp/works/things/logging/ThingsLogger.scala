@@ -53,7 +53,6 @@ object ThingsLogger {
 
     else folder
 
-
   }
   /**
    * This method build the Logback logger including

@@ -32,12 +32,12 @@ object ThingsStartup extends Logging {
    * The list of supported managers. Supported values
    * are `airq`, `owea` and `prod`.
    */
-  private val managers = List("airq")
+  private val managers = List("airq", "owea")
   /*
    * The list of supported consumers. Supported values
    * are `airq`, `owea` and `prod`.
    */
-  private val monitors = List("airq")
+  private val monitors = List("airq", "owea")
 
   def loadRegistries():Boolean = {
 

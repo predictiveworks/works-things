@@ -1,6 +1,4 @@
-package de.kp.works.things.prod
-
-import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
+package de.kp.works.things.ttn.transformer
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -21,22 +19,18 @@ import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
  *
  */
 
-trait ProdBase {
+import com.google.gson.JsonObject
+import de.kp.works.things.logging.Logging
 
-  def buildTBDeviceName(deviceName:String, assetName:String):String = {
+abstract class TTNTransform extends Logging {
+  /*
+   * The ThingsBoard field names
+   */
+  val TB_BATT: String = "batt"
+  val TB_CO2: String  = "co2"
+  val TB_HUMD: String = "humd"
+  val TB_TEMP: String = "temp"
 
-    val devicePrefix = s"DEV.${deviceName.replace(" ", "-").toUpperCase}"
-    val tbDeviceName = {
-      /*
-       * Remove the prefix from the room identifier
-       * and replace by the device prefix
-       */
-      val tokens = Array(devicePrefix) ++assetName.split("\\.").tail
-      tokens.mkString(".")
-    }
-
-    tbDeviceName
-
-  }
+  def transform(ttnDeviceId: String, decodedPayload: JsonObject): Option[JsonObject]
 
 }

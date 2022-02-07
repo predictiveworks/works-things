@@ -128,55 +128,59 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) extends Logging 
    */
   def publish(mqttMessage:MqttMessage):Unit = {
 
-    val payload = mqttMessage.getPayload
-    val json = JsonParser.parseString(new String(payload))
+    val payload = new String(mqttMessage.getPayload)
+    val json = JsonParser.parseString(payload)
     /*
      * Extract uplink message and associated
      * decoded payload
      */
     val messageObj = json.getAsJsonObject
-    val uplinkMessage = messageObj.get("uplink_message").getAsJsonObject
+    val decodedPayload = TTNRegistry.transform(messageObj)
 
-    val decodedPayload = uplinkMessage.get("decoded_payload").getAsJsonObject
-    /*
-     * Transform payload into [TBColumns]
-     * and build associated [TBJob]
-     */
-    val tbColumns = decodedPayload.entrySet()
+    if (decodedPayload.nonEmpty) {
       /*
-       * Restrict attributes to numeric
-       * attributes
+       * Transform payload into [TBColumns]
+       * and build associated [TBJob]
        */
-      .filter(entry => {
+      val tbColumns = decodedPayload.get.entrySet()
+        /*
+         * Restrict attributes to numeric
+         * attributes
+         */
+        .filter(entry => {
 
-        val attrValue = entry.getValue
+          val attrValue = entry.getValue
 
-        if (!attrValue.isJsonPrimitive) false
-        else {
-          val primitive = json.getAsJsonPrimitive
-          if (!primitive.isNumber)  false else true
-        }
+          if (!attrValue.isJsonPrimitive) false
+          else {
+            val primitive = json.getAsJsonPrimitive
+            if (!primitive.isNumber)  false else true
+          }
 
-      })
-      .map(entry => {
+        })
+        .map(entry => {
 
-        val attrName = entry.getKey
-        val attrValue = getDouble(entry.getValue)
+          val attrName = entry.getKey
+          val attrValue = getDouble(entry.getValue)
 
-        TBColumn(attrName, attrValue)
+          TBColumn(attrName, attrValue)
 
-      }).toSeq
+        }).toSeq
 
-    val ts = System.currentTimeMillis
-    val tbRecords = Seq(TBRecord(ts, tbColumns))
+      val ts = System.currentTimeMillis
+      val tbRecords = Seq(TBRecord(ts, tbColumns))
 
-    val tbTimeseries = TBTimeseries(tbRecords)
-    val tbJob = TBJob(tbDeviceName, tbTimeseries, actorStop = false)
-    /*
-     * Send [TBJob] request to the provided
-     * device actor
-     */
-    tbDeviceActor ! tbJob
+      val tbTimeseries = TBTimeseries(tbRecords)
+      val tbJob = TBJob(tbDeviceName, tbTimeseries, actorStop = false)
+      /*
+       * Send [TBJob] request to the provided
+       * device actor
+       */
+      tbDeviceActor ! tbJob
+
+    } else {
+      warn(s"Unknown TTN payload detected: $payload")
+    }
 
   }
 

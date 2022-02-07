@@ -1,6 +1,4 @@
-package de.kp.works.things.prod
-
-import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
+package de.kp.works.things.slack
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -21,22 +19,16 @@ import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
  *
  */
 
-trait ProdBase {
+object SlackOptions {
+  /**
+   * The internal configuration is used, if the current
+   * configuration is not set here
+   */
+  if (!SlackConf.isInit) SlackConf.init()
+  private val botCfg = SlackConf.getBotCfg
 
-  def buildTBDeviceName(deviceName:String, assetName:String):String = {
+  def getChannel:String = botCfg.getString("channel")
 
-    val devicePrefix = s"DEV.${deviceName.replace(" ", "-").toUpperCase}"
-    val tbDeviceName = {
-      /*
-       * Remove the prefix from the room identifier
-       * and replace by the device prefix
-       */
-      val tokens = Array(devicePrefix) ++assetName.split("\\.").tail
-      tokens.mkString(".")
-    }
-
-    tbDeviceName
-
-  }
+  def getOAuthToken:String = botCfg.getString("token")
 
 }

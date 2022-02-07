@@ -171,6 +171,19 @@ object DeviceRegistry {
 
   }
   /**
+   * This method retrieves a specific device
+   * that refers to a certain TTN device
+   */
+  def getByTTNDeviceId(ttnDeviceId:String):Option[DeviceEntry] = {
+
+    val deviceEntries = registry
+      .map{case(_, deviceEntry) => deviceEntry}
+      .filter(deviceEntry => deviceEntry.ttnDeviceId == ttnDeviceId)
+
+    deviceEntries.headOption
+
+  }
+  /**
    * Retrieve a certain registered device by its
    * ThingsBoard device name
    */
