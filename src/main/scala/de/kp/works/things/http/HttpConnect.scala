@@ -124,31 +124,6 @@ trait HttpConnect {
 
   }
 
-  def post(endpoint:String, headers:Map[String,String], query:String):Source[ByteString,Any] = {
-
-    try {
-
-      val reqEntity = HttpEntity(`application/json`, ByteString(query))
-      val reqHeaders = headers.map{case(k,v) => RawHeader(k, v)}.toList
-
-      val request = HttpRequest(HttpMethods.POST, endpoint, entity=reqEntity, headers=reqHeaders)
-      val future: Future[HttpResponse] = Http(httpSystem).singleRequest(request)
-
-      val response = Await.result(future, duration)
-
-      val status = response.status
-      if (status != StatusCodes.OK)
-        throw new Exception(s"Request to Http endpoint returns with: ${status.value}.")
-
-      response.entity.dataBytes
-
-    } catch {
-      case t:Throwable =>
-        throw new Exception(t.getLocalizedMessage)
-    }
-
-  }
-
   def get(endpoint:String, headers:Map[String,String]=Map.empty[String,String]):Source[ByteString,Any] = {
 
     try {
@@ -178,6 +153,31 @@ trait HttpConnect {
         return response.entity.dataBytes
 
       throw new Exception(s"Request to Http endpoint returns with: ${status.value}.")
+
+    } catch {
+      case t:Throwable =>
+        throw new Exception(t.getLocalizedMessage)
+    }
+
+  }
+
+  def post(endpoint:String, headers:Map[String,String], query:String):Source[ByteString,Any] = {
+
+    try {
+
+      val reqEntity = HttpEntity(`application/json`, ByteString(query))
+      val reqHeaders = headers.map{case(k,v) => RawHeader(k, v)}.toList
+
+      val request = HttpRequest(HttpMethods.POST, endpoint, entity=reqEntity, headers=reqHeaders)
+      val future: Future[HttpResponse] = Http(httpSystem).singleRequest(request)
+
+      val response = Await.result(future, duration)
+
+      val status = response.status
+      if (status != StatusCodes.OK)
+        throw new Exception(s"Request to Http endpoint returns with: ${status.value}.")
+
+      response.entity.dataBytes
 
     } catch {
       case t:Throwable =>

@@ -1,4 +1,4 @@
-package de.kp.works.things.server
+package de.kp.works.things.conf
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -19,15 +19,13 @@ package de.kp.works.things.server
  *
  */
 
-object ThingsServer extends BaseServer {
+import com.typesafe.config.Config
 
-  override var programName: String = "ThingsServer"
-  override var programDesc: String = "Connect multiple data sources to a ThingsBoard server."
+object MappingsConf extends BaseConf {
 
-  override def launch(args: Array[String]): Unit = {
+  override var path = "mappings.conf"
+  override var logname = "Mappings"
 
-    val service = new ThingsService()
-    start(args, service)
+  def getMappingsCfg: Config = getCfg("mappings")
 
-  }
 }

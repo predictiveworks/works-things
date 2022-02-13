@@ -44,7 +44,7 @@ object TBAdmin {
 class TBAdmin extends TBClient with Logging {
 
   private val assetUrl    = "/api/asset"
-  private val getAssetUrl   = "/api/tenant/assets?assetName="
+  private val getAssetUrl = "/api/tenant/assets?assetName="
 
   private val deviceUrl   = "/api/device"
   private val relationUrl = "/api/relation"
@@ -259,20 +259,37 @@ class TBAdmin extends TBClient with Logging {
 
   }
 
-  def createRelations(datasource:String, tbAssetId:String, tbAssetName:String, tbDeviceIds:List[String]):Unit = {
+  def createRelations(
+    datasource:String, tbSrcId:String, tbSrcName:String, tbSrcType:String, tbDstIds:List[String], tbDstType:String):Unit = {
     /*
      * STEP #1: Create relations in the ThingsBoard
      * database leveraging the REST API
      */
-    tbDeviceIds.foreach(tbDeviceId => {
+    tbDstIds.foreach(tbDstId => {
 
       val relation = new EntityRelation()
 
-      val tbFromId = AssetId.fromString(tbAssetId)
-      relation.setFrom(tbFromId)
+      tbSrcType match {
+        case "ASSET" =>
+          relation.setFrom(AssetId.fromString(tbSrcId))
 
-      val tbToId = DeviceId.fromString(tbDeviceId)
-      relation.setTo(tbToId)
+        case "DEVICE" =>
+          relation.setFrom(DeviceId.fromString(tbSrcId))
+        case _ =>
+          throw new Exception(s"Relation source type `$tbSrcType` is not supported.")
+
+      }
+
+      tbDstType match {
+        case "ASSET" =>
+          relation.setTo(AssetId.fromString(tbDstId))
+
+        case "DEVICE" =>
+          relation.setTo(DeviceId.fromString(tbDstId))
+        case _ =>
+          throw new Exception(s"Relation destination type `$tbDstType` is not supported.")
+
+      }
       /*
        * The relation type is set fixed to `Contains`
        */
@@ -285,15 +302,23 @@ class TBAdmin extends TBClient with Logging {
     /*
      * STEP #2: Register relations in the relation
      * registry to ease and accelerate Things API
-     * requests
+     * requests.
+     *
+     * Note, the current implementation leverages
+     * the relation registry to find relations
+     * between assets and devices
      */
-    val relationEntry = RelationEntry(
-      datasource = datasource,
-      tbFromId   = tbAssetId,
-      tbFromName = tbAssetName,
-      tbToIds    = tbDeviceIds)
+    if (tbDstType == "DEVICE") {
 
-    RelationRegistry.register(relationEntry)
+      val relationEntry = RelationEntry(
+        datasource = datasource,
+        tbFromId   = tbSrcId,
+        tbFromName = tbSrcName,
+        tbToIds    = tbDstIds)
+
+      RelationRegistry.register(relationEntry)
+
+    }
 
   }
 

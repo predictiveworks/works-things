@@ -164,7 +164,8 @@ class AirqManager extends Logging {
            *
            *    CREATE RELATIONS
            */
-          tbAdmin.createRelations(datasource, tbAssetId, tbAssetName, tbDeviceIds)
+          tbAdmin.createRelations(
+            datasource, tbAssetId, tbAssetName, "ASSET", tbDeviceIds, "DEVICE")
           /*
            * Inform about successful creation of this
            * air quality station

@@ -20,7 +20,7 @@ package de.kp.works.things.owea
  */
 
 import com.typesafe.config.ConfigObject
-import de.kp.works.things.ThingsConf
+import de.kp.works.things.conf.ThingsConf
 
 import scala.collection.JavaConversions._
 

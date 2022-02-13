@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.google.gson._
 import com.typesafe.config.Config
-import de.kp.works.things.ThingsConf
+import de.kp.works.things.conf.ThingsConf
 import de.kp.works.things.devices.RelationRegistry
 import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb.{TBAdmin, TBOptions, TBPoint}
@@ -190,10 +190,31 @@ abstract class BaseActor extends Actor with Logging {
 
   }
 
+  def buildEmptyPosition:String = {
+
+    val jsonObj = new JsonObject()
+    jsonObj.addProperty("ts", System.currentTimeMillis)
+
+    jsonObj.add("latlon", new JsonArray)
+    jsonObj.addProperty("step", -1)
+
+    jsonObj.toString
+
+  }
+
+  def buildEmptyRoute:String = {
+    new JsonArray().toString
+  }
+
   def buildEmptyStations:String = {
     new JsonArray().toString
   }
 
+  /**
+   * This method retrieves the devices related
+   * to the provided asset name; this is achieved
+   * by reading the relation registry
+   */
   def getDeviceIds(tbAssetName:String):List[String] = {
 
     val relationEntry = RelationRegistry.get(tbAssetName)
@@ -214,6 +235,7 @@ abstract class BaseActor extends Actor with Logging {
      * device identifiers from the relation registry
      */
     val tbDeviceIds = getDeviceIds(tbAssetName)
+
     val latestTs = mutable.ArrayBuffer.empty[Long]
     val latestVs = mutable.ArrayBuffer.empty[(String,String,Double)]
 
@@ -233,6 +255,7 @@ abstract class BaseActor extends Actor with Logging {
          *
          */
         val tbLatest = tbAdmin.getTsLatest(tbDeviceId, tbKeys)
+        println(tbLatest)
         /*
          * This method flattens the results when a certain
          * sensor contains more than one attribute
@@ -256,12 +279,19 @@ abstract class BaseActor extends Actor with Logging {
      * Organize latest values with respect to the
      * device identifier
      */
-    val latestValues = latestVs
-      .groupBy{case(deviceId, _, _) => deviceId}
-      .map{case(deviceId, data) =>
-        val values = data.map{case(_, name, value) => DeviceValue(name, value)}
-        DeviceValues(deviceId, values)
-      }.toList
+    val latestValues = {
+
+      if (latestVs.nonEmpty) {
+        latestVs
+          .groupBy{case(deviceId, _, _) => deviceId}
+          .map{case(deviceId, data) =>
+            val values = data.map{case(_, name, value) => DeviceValue(name, value)}
+            DeviceValues(deviceId, values)
+          }.toList
+
+      } else
+        List.empty[DeviceValues]
+    }
     /*
      * Compute the average timestamp for all latest
      * device values

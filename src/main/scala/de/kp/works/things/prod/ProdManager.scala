@@ -172,15 +172,7 @@ class ProdManager extends ProdBase with Logging {
     var success:Boolean = true
     try {
       /*
-       * STEP #1: Retrieve the current TTN devices and group
-       * devices by their referenced asset identifier.
-       *
-       * Note, each TTN device contains an attribute `asset`
-       * that links it to one of the rooms.
-       */
-      val ttnDevices = getTTNDevices
-      /*
-       * STEP #2: Login to ThingsBoard REST API and retrieve
+       * STEP #1: Login to ThingsBoard REST API and retrieve
        * access tokens for this session
        */
       val tbAdmin = new TBAdmin()
@@ -191,12 +183,12 @@ class ProdManager extends ProdBase with Logging {
         java.util.UUID.fromString(tbAdmin.getCustomerId))
 
       /*
-       * STEP #3: Retrieve all assets that refer to
+       * STEP #2: Retrieve all assets that refer to
        * the configured tenant administrator
        */
       val tbAssets = tbAdmin.getAssets
       /*
-       * STEP #4: Reduce the configured rooms to those
+       * STEP #3: Reduce the configured rooms to those
        * that have not been created already
        */
       val tbAssetNames = tbAssets.map(a => a.getName)
@@ -212,7 +204,7 @@ class ProdManager extends ProdBase with Logging {
        */
       val createdRooms = mutable.ArrayBuffer.empty[(String, ProdRoom)]
       /*
-       * STEP #5: Create remaining production rooms
+       * STEP #4: Create remaining production rooms
        * as ThingsBoard assets
        */
       filteredRooms.foreach(room => {
@@ -244,26 +236,6 @@ class ProdManager extends ProdBase with Logging {
           val tbRoomId = tbAdmin.extractEntityId(tbResponse)
 
           Thread.sleep(50)
-          /* ------------------------------
-           *
-           *    CREATE DEVICES
-           *
-           * This implementation leverages the dynamically
-           * retrieved TTN devices; note, the link between
-           * the current station and `its` TTN devices is
-           * defined by the extra TTN attribute `station`.
-           */
-          val tbDeviceIds = ttnDevices(room.id).map(ttnDevice => {
-
-            val tbDeviceName = buildTBDeviceName(ttnDevice.name, room.id)
-            tbAdmin.createTTNDevice(tbCustomerId, datasource, tbDeviceName, ttnDevice)
-
-          }).toList
-          /* ------------------------------
-           *
-           *    CREATE RELATIONS
-           */
-          tbAdmin.createRelations(datasource, tbRoomId, tbRoomName, tbDeviceIds)
           /*
            * Register the asset identifier of the successfully
            * created production room for subsequent relation to
@@ -285,7 +257,7 @@ class ProdManager extends ProdBase with Logging {
 
       })
       /*
-       * STEP #6: Build relations between remaining
+       * STEP #5: Build relations between remaining
        * and previously registered stations and these
        * rooms
        */
@@ -311,12 +283,16 @@ class ProdManager extends ProdBase with Logging {
              *
              */
             val tbResponse = tbAdmin.getAssetByName(tbStationName)
+            Thread.sleep(500)
+
             val tbStationId = tbResponse.getId.getId.toString
+
             /* ------------------------------
              *
              *    CREATE RELATIONS
              */
-            tbAdmin.createRelations(datasource, tbStationId, tbStationName, tbRoomIds.toList)
+            tbAdmin.createRelations(
+              datasource, tbStationId, tbStationName, "ASSET", tbRoomIds.toList, "ASSET")
 
           } catch {
             case t: Throwable =>
@@ -432,16 +408,16 @@ class ProdManager extends ProdBase with Logging {
           val tbAssetId = tbAsset.getId.getId.toString
           val tbAssetName = tbAsset.getName
 
-          tbAdmin.createRelations(datasource, tbAssetId, tbAssetName, tbDeviceIds)
+          tbAdmin.createRelations(datasource, tbAssetId, tbAssetName, "ASSET", tbDeviceIds, "DEVICE")
           /*
            * Inform about successful creation of this
            * production device
            */
-          info(s"TTN device for room `$room` successfully created.")
+          info(s"TTN device(s) for room `$room` successfully created.")
 
         } catch {
           case t:Throwable =>
-            error(s"Creating TTN device for room `$room` failed: ${t.getLocalizedMessage}")
+            error(s"Creating TTN device(s) for room `$room` failed: ${t.getLocalizedMessage}")
             success = false
         }
       }

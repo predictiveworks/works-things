@@ -52,6 +52,14 @@ class ThingsService extends BaseService {
       AIRQ_STATIONS_ACTOR -> system.actorOf(
         Props(new AirqStations()), AIRQ_STATIONS_ACTOR),
       /*
+       * Geospatial (mobile) support
+       */
+      ORS_POSITION_ACTOR -> system.actorOf(
+        Props(new OrsPosition()), ORS_POSITION_ACTOR),
+
+      ORS_ROUTE_ACTOR -> system.actorOf(
+        Props(new OrsRoute()), ORS_ROUTE_ACTOR),
+      /*
        * Open weather (mobile) support
        */
       OWEA_DETAIL_ACTOR -> system.actorOf(
@@ -113,7 +121,7 @@ class ThingsService extends BaseService {
      * to retrieve device specific real-time data
      * and publish to ThingsBoard
      */
-    success = ThingsStartup.activeConsumers()
+    //success = ThingsStartup.activeConsumers()
     if (!success) {
       throw new Exception(s"Activation of data consumers failed.")
     }

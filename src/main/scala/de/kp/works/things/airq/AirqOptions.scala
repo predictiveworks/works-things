@@ -20,7 +20,7 @@ package de.kp.works.things.airq
  */
 
 import com.typesafe.config.{Config, ConfigObject}
-import de.kp.works.things.ThingsConf
+import de.kp.works.things.conf.ThingsConf
 
 import scala.collection.JavaConversions._
 

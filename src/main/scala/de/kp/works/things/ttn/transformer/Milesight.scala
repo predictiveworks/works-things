@@ -60,14 +60,14 @@ class Milesight extends TTNTransform {
            * "humidity": 50.5,
            * "temperature": 30.8
            * }
+           *
+           * The battery is an optional parameter and will therefore
+           * not be taken into account
            */
-          val battery = decodedPayload.get(BATTERY).getAsNumber
-
           val humidity = decodedPayload.get(HUMIDITY).getAsNumber
           val temperature = decodedPayload.get(TEMPERATURE).getAsNumber
 
           val output = new JsonObject
-          output.addProperty(TB_BATT, battery)
 
           output.addProperty(TB_HUMD, humidity)
           output.addProperty(TB_TEMP, temperature)

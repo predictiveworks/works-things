@@ -20,7 +20,7 @@ package de.kp.works.things.ttn
  */
 
 import com.typesafe.config.Config
-import de.kp.works.things.ThingsConf
+import de.kp.works.things.conf.ThingsConf
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 

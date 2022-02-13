@@ -1,5 +1,7 @@
 package de.kp.works.things.slack
 
+import de.kp.works.things.conf.SlackConf
+
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
  *

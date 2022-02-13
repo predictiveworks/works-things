@@ -1,4 +1,4 @@
-package de.kp.works.things
+package de.kp.works.things.conf
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -19,51 +19,12 @@ package de.kp.works.things
  *
  */
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.Config
 
-object ThingsConf {
+object ThingsConf extends BaseConf {
 
-  private val path = "reference.conf"
-  /**
-   * This is the reference to the overall configuration
-   * file that holds all configuration required for this
-   * application
-   */
-  private var cfg: Option[Config] = None
-
-  def init(config: Option[String] = None): Boolean = {
-
-    if (cfg.isDefined) true
-    else {
-      try {
-
-        cfg = if (config.isDefined) {
-          /*
-           * An external configuration file is provided
-           * and must be transformed into a Config
-           */
-          Option(ConfigFactory.parseString(config.get))
-
-        } else {
-          /*
-           * The internal reference file is used to
-           * extract the required configurations
-           */
-          Option(ConfigFactory.load(path))
-
-        }
-        true
-
-      } catch {
-        case _: Throwable =>
-          false
-      }
-    }
-  }
-
-  def isInit: Boolean = {
-    cfg.isDefined
-  }
+  override var path = "reference.conf"
+  override var logname = "Main"
 
   def getActorCfg: Config = getCfg("actor")
 
@@ -86,16 +47,5 @@ object ThingsConf {
   def getTTNCfg: Config = getCfg("thingsnetwork")
 
   def getWeatherCfg: Config = getCfg("weather")
-
-  def getCfg(name:String): Config = {
-
-    val now = new java.util.Date().toString
-
-    if (cfg.isEmpty)
-      throw new Exception(s"[ERROR] $now - Configuration not initialized.")
-
-    cfg.get.getConfig(name)
-
-  }
 
 }

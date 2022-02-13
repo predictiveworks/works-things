@@ -20,7 +20,7 @@ package de.kp.works.things.prod
  */
 
 import com.typesafe.config.ConfigObject
-import de.kp.works.things.{MappingsConf, ThingsConf}
+import de.kp.works.things.conf.{MappingsConf, ThingsConf}
 
 import scala.collection.JavaConversions._
 

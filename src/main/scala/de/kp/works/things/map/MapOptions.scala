@@ -1,4 +1,4 @@
-package de.kp.works.things.server
+package de.kp.works.things.map
 
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
@@ -19,15 +19,19 @@ package de.kp.works.things.server
  *
  */
 
-object ThingsServer extends BaseServer {
 
-  override var programName: String = "ThingsServer"
-  override var programDesc: String = "Connect multiple data sources to a ThingsBoard server."
+import de.kp.works.things.conf.GeospatialConf
 
-  override def launch(args: Array[String]): Unit = {
+object MapOptions {
+  /**
+   * The internal configuration is used, if the current
+   * configuration is not set here
+   */
+  if (!GeospatialConf.isInit) GeospatialConf.init()
+  private val orsCfg = GeospatialConf.getOrsCfg
 
-    val service = new ThingsService()
-    start(args, service)
+  def getOrsToken:String = orsCfg.getString("authToken")
 
-  }
+  def getOrsUrl:String = orsCfg.getString("serverUrl")
+
 }

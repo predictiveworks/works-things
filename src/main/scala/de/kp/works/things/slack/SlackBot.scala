@@ -25,7 +25,14 @@ import com.slack.api.methods.request.files.FilesUploadRequest
 import de.kp.works.things.logging.Logging
 
 import scala.collection.JavaConversions._
-
+/**
+ * The [SlackBot] is designed as a bridge between the layer
+ * of devices and machines, representing the internet of things,
+ * and the human layer, specified by social media.
+ *
+ * The current implementation supports text messages and the
+ * upload of images.
+ */
 class SlackBot extends Logging {
 
   private val slackChannel:String = SlackOptions.getChannel
@@ -52,12 +59,14 @@ class SlackBot extends Logging {
 
       val response = methodsClient.chatPostMessage(request)
       if (!response.isOk) {
-        warn(s"Sending a chat message to Slack failed: ${response.getError}")
+        println(response.getError)
+        //warn(s"Sending a chat message to Slack failed: ${response.getError}")
       }
 
     } catch {
       case t:Throwable =>
-       error(s"Sending a chat message to Slack failed: ${t.getLocalizedMessage}")
+        t.printStackTrace()
+       //error(s"Sending a chat message to Slack failed: ${t.getLocalizedMessage}")
     }
 
 

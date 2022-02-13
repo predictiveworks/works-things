@@ -36,6 +36,13 @@ object MobileRoutes {
   val AIRQ_DETAIL_ACTOR   = "airq_detail_actor"
   val AIRQ_STATION_ACTOR  = "airq_station_actor"
   val AIRQ_STATIONS_ACTOR = "airq_stations_actor"
+  /*
+   * The subsequent actors support the tracking
+   * of geospatial objects leveraging the Open
+   * Routing Service (ORS).
+   */
+  val ORS_POSITION_ACTOR = "ors_position_actor"
+  val ORS_ROUTE_ACTOR = "ors_route_actor"
 
   val OWEA_DETAIL_ACTOR   = "owea_detail_actor"
   val OWEA_STATION_ACTOR  = "owea_station_actor"
@@ -65,15 +72,33 @@ class MobileRoutes(actors:Map[String, ActorRef])(implicit system: ActorSystem) {
   import MobileRoutes._
 
   def getRoutes:Route = {
+    /*
+     * Air quality support
+     */
     getAirqDetail ~
     getAirqStation ~
     getAirqStations ~
+    /*
+     * Geospatial support
+     */
+    getOrsPosition ~
+    getOrsRoute ~
+    /*
+     * Weather support
+     */
     getOweaDetail ~
     getOweaStation ~
     getOweaStations ~
+    /*
+     * Production support
+     */
     getProdDetail ~
     getProdStation ~
     getProdStations ~
+    /*
+     * ThingsBoard & The Things Network
+     * support
+     */
     getTBDevice ~
     getTBDevices ~
     getTTNDevices
@@ -88,6 +113,13 @@ class MobileRoutes(actors:Map[String, ActorRef])(implicit system: ActorSystem) {
   private def getAirqStation:Route = routePost("things/v1/mobile/airq/station", actors(AIRQ_STATION_ACTOR))
 
   private def getAirqStations:Route = routePost("things/v1/mobile/airq/stations", actors(AIRQ_STATIONS_ACTOR))
+  /*
+   * Routes that support mobile REST request to
+   * geospatial related devices and stations
+   */
+  private def getOrsPosition:Route = routePost("things/v1/mobile/ors/position", actors(ORS_POSITION_ACTOR))
+
+  private def getOrsRoute:Route = routePost("things/v1/mobile/ors/route", actors(ORS_ROUTE_ACTOR))
   /*
    * Routes that support mobile REST request to
    * weather related devices and stations

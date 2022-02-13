@@ -1,5 +1,7 @@
 package de.kp.works.things.devices
 
+import de.kp.works.things.conf.ThingsConf
+
 /**
  * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
  *
@@ -18,8 +20,6 @@ package de.kp.works.things.devices
  * @author Stefan Krusche, Dr. Krusche & Partner PartG
  *
  */
-
-import de.kp.works.things.ThingsConf
 
 object RepositoryOptions {
 

@@ -103,8 +103,6 @@ class TTNAdmin extends HttpConnect {
 
     val bytes = get(endpoint, header)
     val json = extractJsonBody(bytes)
-
-    println(json)
     /*
      * Response format:
      *

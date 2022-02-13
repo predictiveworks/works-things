@@ -19,7 +19,8 @@ package de.kp.works.things.ttn.transformer
  *
  */
 
-import com.google.gson.JsonObject
+import com.google.gson.{JsonNull, JsonObject}
+
 import scala.collection.JavaConversions.iterableAsScalaIterable
 
 class SenseCAP extends TTNTransform {
@@ -54,7 +55,8 @@ class SenseCAP extends TTNTransform {
            *        "measurementId": 4100,
            *        "measurementValue": 364,
            *        "type": "report_telemetry"
-           *      }
+           *      },
+           *      ...
            *    ],
            *    "payload": "010410E08D05009802",
            *    "valid": true
@@ -62,22 +64,46 @@ class SenseCAP extends TTNTransform {
            */
           val err = decodedPayload.get(ERR).getAsInt
           if (err == 0) {
+            /*
+             * We restrict our processing to `report_telemetry`
+             * message, as their may be also other message with
+             * different types be provided
+             */
+            val message = {
 
-            val message = decodedPayload.get(MESSAGES)
-              .getAsJsonArray.head.getAsJsonObject
+              val messages = decodedPayload.get(MESSAGES).getAsJsonArray
+              val filtered = messages.filter(messageElem => {
 
-            val measurementId = message.get(MEASUREMENT_ID).getAsInt
-            if (measurementId == CO2) {
+                val messageObj = messageElem.getAsJsonObject
+                val messageType = messageObj.get("type").getAsString
 
-              val measurementValue = message.get(MEASUREMENT_VALUE).getAsNumber
+                if (messageType == "report_telemetry") true else false
 
-              val output = new JsonObject
-              output.addProperty(TB_CO2, measurementValue)
+              })
 
-              Some(output)
+              if (filtered.nonEmpty)
+                filtered.head.getAsJsonObject else JsonNull.INSTANCE
 
-            } else
-              throw new Exception("SenseCAP message received for `$ttnDeviceId` does not describe CO2 measurements.")
+            }
+
+            if (message.isJsonObject) {
+
+              val messageObj = message.getAsJsonObject
+
+              val measurementId = messageObj.get(MEASUREMENT_ID).getAsInt
+              if (measurementId == CO2) {
+
+                val measurementValue = messageObj.get(MEASUREMENT_VALUE).getAsNumber
+
+                val output = new JsonObject
+                output.addProperty(TB_CO2, measurementValue)
+
+                Some(output)
+
+              } else
+                throw new Exception("SenseCAP message received for `$ttnDeviceId` does not describe CO2 measurements.")
+
+            } else None
 
           } else
             throw new Exception("SenseCAP error message received for `$ttnDeviceId`.")

@@ -1,18 +1,36 @@
 package de.kp.works.things.prod
 
-import de.kp.works.things.ThingsConf
+/**
+ * Copyright (c) 2019 - 2022 Dr. Krusche & Partner PartG. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ * @author Stefan Krusche, Dr. Krusche & Partner PartG
+ *
+ */
+
 import de.kp.works.things.devices.DeviceRegistry
+import de.kp.works.things.image.ImageMaker
 import de.kp.works.things.logging.Logging
+import de.kp.works.things.slack.SlackBot
 import de.kp.works.things.tb.{TBAdmin, TBPoint}
 import de.kp.works.things.ttn.{TTNAdmin, TTNDevice}
 import org.knowm.xchart.BitmapEncoder.BitmapFormat
-import org.knowm.xchart.style.markers.SeriesMarkers
-import org.knowm.xchart.{BitmapEncoder, XYChart, XYChartBuilder}
+import org.knowm.xchart.{BitmapEncoder, XYChart}
 
-import java.awt.Color
 import java.time.{Instant, LocalDateTime}
-import java.util.{Calendar, TimeZone}
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
+import java.util.{Calendar, TimeZone}
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
@@ -133,38 +151,16 @@ class ProdCharts(numThreads:Int = 1) extends Logging {
  * of measurements from the respective production stations
  * to Slack
  */
-class ProdImages extends Logging {
-
-  /**
-   * The internal configuration is used, if the current
-   * configuration is not set here
-   */
-  if (!ThingsConf.isInit) ThingsConf.init()
-  /**
-   * Determine the images folder from the system
-   * property `images.dir`
-   */
-  private val folder = System.getProperty("images.dir")
-  private val imagesCfg = ThingsConf.getImagesCfg
+class ProdImages extends ImageMaker with Logging {
 
   private val rooms = ProdOptions.getRooms
   private val ttnDevices = getTTNDevices
-
-  private val WIDTH  = 800
-  private val HEIGHT = 600
-
-  private val BG_COLOR   = new Color(255, 255, 255)
-  private val FONT_COLOR = new Color(41, 48, 66)
-  private val LINE_COLOR = new Color(41, 48, 66)
-
-  private def getFolder:String = {
-
-    if (folder == null)
-      imagesCfg.getString("folder")
-
-    else folder
-
-  }
+  /*
+   * The production image maker is related to
+   * a Slack bot to send produced images to a
+   * pre-defined Slack workspace
+   */
+  private val slackBot = new SlackBot()
 
   def buildImages():Unit = {
     /*
@@ -193,127 +189,82 @@ class ProdImages extends Logging {
        * Fill the respective room charts, which will
        * be joined into a single image
        */
-      ttnDevices(tbAssetName).foreach(ttnDevice => {
-        /*
-         * This request retrieves the values of the
-         * last 24 hours
-         */
-        val tbAdmin = new TBAdmin()
-        if (!tbAdmin.login())
-          throw new Exception("Login to ThingsBoard failed.")
-        /*
-         * Retrieve the registry entry that refers
-         * to the TTN device identifier
-         */
-        val deviceEntry = DeviceRegistry.getByTTNDeviceId(ttnDevice.device_id)
-        if (deviceEntry.nonEmpty) {
+      if (ttnDevices.contains(tbAssetName)) {
 
-          val tbDeviceId = deviceEntry.get.tbDeviceId
-          /* ------------------------------
-           *
-           *     GET CLIENT ATTRIBUTES
-           *
-           */
-          val tbKeys = tbAdmin.getTsKeys(tbDeviceId)
-          Thread.sleep(10)
+          ttnDevices(tbAssetName).foreach(ttnDevice => {
           /*
-           * The timeseries contains all sensors (keys)
-           * that are assigned to the specific device
+           * This request retrieves the values of the
+           * last 24 hours
            */
-          val tbValues =
-            getDeviceTs(tbAdmin, tbDeviceId, tbKeys)
+          val tbAdmin = new TBAdmin()
+          if (!tbAdmin.login())
+            throw new Exception("Login to ThingsBoard failed.")
           /*
-           * Each `sensor` of the specific device is
-           * visualized in its own chart
+           * Retrieve the registry entry that refers
+           * to the TTN device identifier
            */
-          tbValues.foreach{case(sensor, values) =>
-            val chartTitle = roomTitle + " - " + lookup(sensor)
-            val chartValues = values.zipWithIndex
-              .map{case(point, index) => (index.toDouble, point.ts, point.value)}
+          val deviceEntry = DeviceRegistry.getByTTNDeviceId(ttnDevice.device_id)
+          if (deviceEntry.nonEmpty) {
 
-            val roomChart = buildChart(chartTitle, chartValues)
-            roomCharts += roomChart
+            val tbDeviceId = deviceEntry.get.tbDeviceId
+            /* ------------------------------
+             *
+             *     GET CLIENT ATTRIBUTES
+             *
+             */
+            val tbKeys = tbAdmin.getTsKeys(tbDeviceId)
+            Thread.sleep(10)
+            /*
+             * The timeseries contains all sensors (keys)
+             * that are assigned to the specific device
+             */
+            val tbValues =
+              getDeviceTs(tbAdmin, tbDeviceId, tbKeys)
+            /*
+             * Each `sensor` of the specific device is
+             * visualized in its own chart
+             */
+            tbValues.foreach{case(sensor, values) =>
+              val chartTitle = roomTitle + " - " + lookup(sensor)
+              val chartValues = values.zipWithIndex
+                .map{case(point, index) => (index.toDouble, point.ts, point.value)}
+
+              val roomChart = buildChartTs(chartTitle, chartValues)
+              roomCharts += roomChart
+            }
           }
-        }
-        /*
-         * Requests to ThingsBoard are finished,
-         * so logout and prepare for next login
-         */
-        tbAdmin.logout()
+          /*
+           * Requests to ThingsBoard are finished,
+           * so logout and prepare for next login
+           */
+          tbAdmin.logout()
 
-      })
-      /*
-       * Finally build the multi-chart image for all
-       * sensors that refer to a certain room
-       */
-      val path = s"$getFolder$tbAssetName.png"
-      val (rows, cols) = {
-        val length = roomCharts.length
-        if (length == 1) {
-          (1,1)
-        } else {
-          ((length / 2) + (length % 2), 2)
+        })
+
+        println(s"$tbAssetName: " + roomCharts.size)
+
+        if (roomCharts.nonEmpty) {
+          /*
+          * Build the multi-chart image for all
+          * sensors that refer to a certain room
+          */
+          val path = s"$getFolder$tbAssetName.png"
+          BitmapEncoder.saveBitmap(roomCharts.toList, roomCharts.size, 1, path, BitmapFormat.PNG)
+          /*
+           * Finally send the current image to
+           * the Hut & Stiel Slack channel
+           */
+          slackBot.upload(path, tbAssetName)
+
         }
+
       }
-
-      BitmapEncoder.saveBitmap(roomCharts.toList, rows, cols, path, BitmapFormat.PNG)
 
     })
 
   }
 
-  private def buildChart(title:String, values:List[(Double, Long, Double)]): XYChart = {
-    /*
-     * The axis labels are not specified as the
-     * respective context is defined
-     */
-    val chart = new XYChartBuilder().width(WIDTH).height(HEIGHT)
-      .title(title)
-      .xAxisTitle("").yAxisTitle("")
-      .build
-    /*
-     * Prepare data as x, y and date lookup series
-     */
-    val xData = values.map(_._1).toArray
-    val yData = values.map(_._3).toArray
-
-    val lookup = values
-      .map { case (index, ts, _) => (index, formatTs(ts)) }
-      .toMap
-    /*
-     * Build timeseries, smooth respective line
-     * and remove all point markers
-     */
-    val series = chart.addSeries(" ", xData, yData)
-    series.setSmooth(true)
-    series.setMarker(SeriesMarkers.NONE)
-    /*
-     * Define the timestamp formatter, i.e. a mapper from
-     * the provided x value (index) and its label (date)
-     */
-    val formatter = new java.util.function.Function[java.lang.Double, String] {
-      override def apply(index: java.lang.Double): String = {
-        lookup(index)
-      }
-    }
-
-    chart.setCustomXAxisTickLabelsFormatter(formatter)
-    chart.getStyler.setLegendVisible(false)
-
-    chart.getStyler.setChartBackgroundColor(BG_COLOR)
-    chart.getStyler.setChartFontColor(FONT_COLOR)
-
-    chart.getStyler.setSeriesColors(Array[Color](LINE_COLOR))
-    /*
-     * This flag removes the double line, x, and y
-     * axis from the respective image
-     */
-    chart.getStyler.setAxisTicksLineVisible(false)
-    chart
-
-  }
-
-  private def formatTs(ts:Long):String = {
+  override def formatTs(ts:Long):String = {
 
     val date = LocalDateTime
       .ofInstant(Instant.ofEpochMilli(ts), TimeZone.getDefault.toZoneId)
@@ -333,7 +284,8 @@ class ProdImages extends Logging {
    * attributes (sensors) that refer to a certain
    * device
    */
-  private def getDeviceTs(tbAdmin:TBAdmin, tbDeviceId:String, tbKeys:Seq[String]):Map[String, List[TBPoint]] = {
+  private def getDeviceTs(
+    tbAdmin:TBAdmin, tbDeviceId:String, tbKeys:Seq[String]):Map[String, List[TBPoint]] = {
     /*
      * The timeseries contains all sensors (keys)
      * that are assigned to the specific device

@@ -87,7 +87,6 @@ class ProdStation extends BaseActor {
        * so logout and prepare for next login
        */
       tbAdmin.logout()
-
       /*
        * Output format:
        *
@@ -117,17 +116,41 @@ class ProdStation extends BaseActor {
        *  ]
        * }
        */
-      val mockValues = List("co2", "temp", "humd", "no2").map(sensor => {
-        Map(
-          "device" -> s"DEV.${sensor.toUpperCase()}",
-          "values" -> List(
-            Map("name" -> sensor, "value" -> new java.util.Random().nextInt(100))
-          )
-        )
 
-      })
+      /*
+       * The current implementation temporarily distinguishes
+       * between rooms (assets) that have devices assigned,
+       * and those have not yet.
+       */
+      val output = {
 
-      val output = Map("ts" -> timestamp, "mappings" -> mappings, "values" -> mockValues)
+        if (latestValues.nonEmpty) {
+          Map("ts" -> timestamp, "mappings" -> mappings, "values" -> latestValues)
+
+        } else {
+          /*
+           * The requested production room has temporarily no
+           * sensors assigned; in order to support the UI, in
+           * this case an empty message is sent.
+           *
+           * The suffix .MOCK is used to handle UI requests
+           * that refer to
+           */
+          val mockValues = List("co2", "humd", "temp").map(sensor => {
+            Map(
+              "device" -> s"DEV.${sensor.toUpperCase()}.MOCK",
+              "values" -> List(
+                Map("name" -> sensor, "value" -> new java.util.Random().nextInt(100))
+              )
+            )
+
+          })
+
+          Map("ts" -> timestamp, "mappings" -> mappings, "values" -> mockValues)
+
+        }
+      }
+      println(output)
       mapper.writeValueAsString(output)
 
     } catch {

@@ -105,28 +105,39 @@ class ProdConsumer(prodSystem:ActorSystem) extends ProdBase with Logging {
      * listen to the TTN sensor readings
      */
     rooms.foreach(room => {
-      ttnDevices(room.id).foreach(ttnDevice => {
+      /*
+       * __MOD__ Pred-defined rooms can exist that do
+       * not have devices assigned
+       */
+      if (ttnDevices.contains(room.id)) {
 
-        val tbDeviceName = buildTBDeviceName(ttnDevice.name, room.id)
-        try {
-          /*
-           * Build device specific actor and provide
-           * actor to the TTN Consumer (MQTT listener)
-           */
-          val tbDeviceActor = prodSystem.actorOf(
-            Props(new TBProducer()), s"$tbDeviceName-actor")
+        ttnDevices(room.id).foreach(ttnDevice => {
 
-          val ttnConsumer = new TTNConsumer(tbDeviceName, tbDeviceActor)
-          ttnConsumers += tbDeviceName -> ttnConsumer
+          val tbDeviceName = buildTBDeviceName(ttnDevice.name, room.id)
+          try {
+            /*
+             * Build device specific actor and provide
+             * actor to the TTN Consumer (MQTT listener)
+             */
+            val tbDeviceActor = prodSystem.actorOf(
+              Props(new TBProducer()), s"$tbDeviceName-actor")
 
-          ttnConsumer.subscribeAndPublish()
+            val ttnConsumer = new TTNConsumer(tbDeviceName, tbDeviceActor)
+            ttnConsumers += tbDeviceName -> ttnConsumer
 
-        } catch {
-          case t:Throwable =>
-            error(s"Creating MQTT listener for `$tbDeviceName` failed: ${t.getLocalizedMessage}")
-        }
+            ttnConsumer.subscribeAndPublish()
 
-      })
+          } catch {
+            case t:Throwable =>
+              error(s"Creating MQTT listener for `$tbDeviceName` failed: ${t.getLocalizedMessage}")
+          }
+
+        })
+
+      } else {
+        warn(s"No TTN device found for room `${room.id}`.")
+      }
+
     })
 
   }

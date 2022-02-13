@@ -21,7 +21,7 @@ package de.kp.works.things.ttn
 
 import akka.actor.ActorRef
 import com.google.gson.{JsonElement, JsonParser}
-import de.kp.works.things.devices.DeviceRegistry
+import de.kp.works.things.devices.{DeviceEntry, DeviceRegistry}
 import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb.{TBColumn, TBJob, TBRecord, TBTimeseries}
 import org.eclipse.paho.client.mqttv3.{IMqttDeliveryToken, MqttCallback, MqttClient, MqttMessage}
@@ -92,7 +92,7 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) extends Logging 
 
       }
       else {
-        error(s"TTN Consumer is connected to The ThingsNetwork.")
+        info(s"TTN Consumer is connected to The ThingsNetwork.")
 
         val mqttTopic = tbDeviceEntry.get.ttnMqttTopic
         mqttClient.get.subscribe(mqttTopic, TTNOptions.getQos)
@@ -105,9 +105,7 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) extends Logging 
 
   def restart(t:Throwable): Unit = {
     warn(s"TTN Consumer restart due to: ${t.getLocalizedMessage}")
-
     subscribeAndPublish()
-
   }
 
   def unsubscribe():Unit = {
@@ -128,58 +126,72 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) extends Logging 
    */
   def publish(mqttMessage:MqttMessage):Unit = {
 
-    val payload = new String(mqttMessage.getPayload)
-    val json = JsonParser.parseString(payload)
-    /*
-     * Extract uplink message and associated
-     * decoded payload
-     */
-    val messageObj = json.getAsJsonObject
-    val decodedPayload = TTNRegistry.transform(messageObj)
+    try {
 
-    if (decodedPayload.nonEmpty) {
+      val payload = new String(mqttMessage.getPayload)
+      val json = JsonParser.parseString(payload)
       /*
-       * Transform payload into [TBColumns]
-       * and build associated [TBJob]
+       * Extract uplink message and associated
+       * decoded payload
        */
-      val tbColumns = decodedPayload.get.entrySet()
+      val now = new java.util.Date()
+      val messageObj = json.getAsJsonObject
+      println(s"----- message ${now.toString}-----")
+      println(messageObj)
+
+      val decodedPayload = TTNRegistry.transform(messageObj)
+      println(s"----- decoded ${now.toString} -----")
+      println(decodedPayload)
+
+      if (decodedPayload.nonEmpty) {
         /*
-         * Restrict attributes to numeric
-         * attributes
+         * Transform payload into [TBColumns]
+         * and build associated [TBJob]
          */
-        .filter(entry => {
+        val tbColumns = decodedPayload.get.entrySet()
+          /*
+           * Restrict attributes to numeric
+           * attributes
+           */
+          .filter(entry => {
 
-          val attrValue = entry.getValue
+            val attrValue = entry.getValue
 
-          if (!attrValue.isJsonPrimitive) false
-          else {
-            val primitive = json.getAsJsonPrimitive
-            if (!primitive.isNumber)  false else true
-          }
+            if (!attrValue.isJsonPrimitive) false
+            else {
+              val primitive = attrValue.getAsJsonPrimitive
+              if (!primitive.isNumber) false else true
+            }
 
-        })
-        .map(entry => {
+          })
+          .map(entry => {
 
-          val attrName = entry.getKey
-          val attrValue = getDouble(entry.getValue)
+            val attrName = entry.getKey
+            val attrValue = getDouble(entry.getValue)
 
-          TBColumn(attrName, attrValue)
+            TBColumn(attrName, attrValue)
 
-        }).toSeq
+          }).toSeq
 
-      val ts = System.currentTimeMillis
-      val tbRecords = Seq(TBRecord(ts, tbColumns))
+        val ts = System.currentTimeMillis
+        val tbRecords = Seq(TBRecord(ts, tbColumns))
 
-      val tbTimeseries = TBTimeseries(tbRecords)
-      val tbJob = TBJob(tbDeviceName, tbTimeseries, actorStop = false)
-      /*
-       * Send [TBJob] request to the provided
-       * device actor
-       */
-      tbDeviceActor ! tbJob
+        val tbTimeseries = TBTimeseries(tbRecords)
 
-    } else {
-      warn(s"Unknown TTN payload detected: $payload")
+        val tbJob = TBJob(tbDeviceName, tbTimeseries, actorStop = false)
+        /*
+         * Send [TBJob] request to the provided
+         * device actor
+         */
+        tbDeviceActor ! tbJob
+
+      } else {
+        warn(s"Unknown TTN payload detected: $payload")
+      }
+
+    } catch {
+      case t:Throwable =>
+        error(s"Consuming MQTT message $mqttMessage failed: ${t.getLocalizedMessage}")
     }
 
   }

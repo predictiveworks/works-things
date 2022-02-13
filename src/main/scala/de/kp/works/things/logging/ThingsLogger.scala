@@ -6,7 +6,7 @@ import ch.qos.logback.classic.spi.{ILoggingEvent, LoggingEvent}
 import ch.qos.logback.core.encoder.Encoder
 import ch.qos.logback.core.rolling.{RollingFileAppender, SizeAndTimeBasedRollingPolicy, TimeBasedRollingPolicy}
 import ch.qos.logback.core.util.FileSize
-import de.kp.works.things.ThingsConf
+import de.kp.works.things.conf.ThingsConf
 import org.slf4j.LoggerFactory
 
 /**

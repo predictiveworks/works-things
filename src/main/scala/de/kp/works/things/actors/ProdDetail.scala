@@ -48,31 +48,58 @@ class ProdDetail extends BaseActor {
 
     try {
 
-      /*
-       * This request retrieves the values of the
-       * last month
-       */
-      val tbAdmin = new TBAdmin()
-      if (!tbAdmin.login())
-        throw new Exception("Login to ThingsBoard failed.")
-
       val tbDeviceId = req.id
-      val tbKeys = Seq(req.sensor)
-
       /*
-       * The timeseries contains all sensors (keys)
-       * that are assigned to the specific devices
+       * The current implementation temporarily distinguishes
+       * between rooms (assets) that have devices assigned,
+       * and those have not yet.
+       *
+       * Those rooms that are simulated are identified via
+       * their suffix
        */
-      val tbValues =
-        getDeviceTs(tbAdmin, tbDeviceId, tbKeys, req.sensor)
-      /*
-       * Requests to ThingsBoard are finished,
-       * so logout and prepare for next login
-       */
-      tbAdmin.logout()
+      val output = if (!tbDeviceId.endsWith(".MOCK")) {
+        /*
+         * This request refers to an existing device and the
+         * timeseries is retrieved by requesting ThingsBoard.
+         *
+         * The result is the timeseries of the last month
+         */
+        val tbAdmin = new TBAdmin()
+        if (!tbAdmin.login())
+          throw new Exception("Login to ThingsBoard failed.")
 
-      val mockValues = TsHistorical.getData(req.sensor)
-      mapper.writeValueAsString(mockValues)
+        val tbKeys = Seq(req.sensor)
+        /*
+         * The timeseries contains all sensors (keys)
+         * that are assigned to the specific devices
+         */
+        val tbValues =
+          getDeviceTs(tbAdmin, tbDeviceId, tbKeys, req.sensor)
+          /*
+           * Transform time series into UI format
+           */
+          .map(tbPoint => {
+            Map("date" -> tbPoint.ts, req.sensor -> tbPoint.value)
+          })
+
+        /*
+         * Requests to ThingsBoard are finished,
+         * so logout and prepare for next login
+         */
+        tbAdmin.logout()
+        tbValues
+
+      } else {
+        /*
+         * This is a request to a room that temporarily
+         * does not have any sensors assigned
+         */
+        val mockValues = TsHistorical.getData(req.sensor)
+        mockValues
+      }
+
+      println(output)
+      mapper.writeValueAsString(output)
 
     } catch {
       case t:Throwable =>

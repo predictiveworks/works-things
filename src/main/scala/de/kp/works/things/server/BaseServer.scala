@@ -25,22 +25,6 @@ trait BaseServer extends Logging {
 
   protected var programName:String
   protected var programDesc:String
-  /**
-   * The name of the external file that contains all
-   * configuration specific parameters for this Things
-   * server application
-   */
-  protected var configFile:Option[String]
-  /**
-   * The name of the external file that contains all
-   * (client) attribute mappings between backend and
-   * frontend attribute names.
-   *
-   * Note: This is an important approach to harmonize
-   * frontend attribute names for different TTN device
-   * attributes.
-   */
-  protected var mappingsFile:Option[String]
 
   def main(args:Array[String]):Unit = {
 
@@ -69,51 +53,11 @@ trait BaseServer extends Logging {
     val line = s"------------------------------------------------"
     info(line)
 
-    val cfg = loadCfgAsString
-    val mappings = loadMappingsAsString
-
-    service.start(cfg, mappings)
+    service.start()
 
     info(s"$programName service started.")
     info(line)
 
   }
 
-  private def loadCfgAsString:Option[String] = {
-
-    if (configFile.isEmpty) {
-      info(s"Launch $programName with internal configuration.")
-      None
-
-    } else {
-      info(s"Launch $programName with external configuration.")
-
-      val source = scala.io.Source.fromFile(new java.io.File(configFile.get))
-      val config = source.getLines.mkString("\n")
-
-      source.close
-      Some(config)
-
-    }
-
-  }
-
-  private def loadMappingsAsString:Option[String] = {
-
-    if (configFile.isEmpty) {
-      info(s"Launch $programName with internal mappings.")
-      None
-
-    } else {
-      info(s"Launch $programName with external mappings.")
-
-      val source = scala.io.Source.fromFile(new java.io.File(mappingsFile.get))
-      val mappings = source.getLines.mkString("\n")
-
-      source.close
-      Some(mappings)
-
-    }
-
-  }
 }

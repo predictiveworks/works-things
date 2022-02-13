@@ -26,7 +26,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import de.kp.works.things.logging.Logging
 import de.kp.works.things.server.ssl.SslOptions
-import de.kp.works.things.{MappingsConf, ThingsConf}
+import de.kp.works.things.conf.{MappingsConf, ThingsConf}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -52,20 +52,20 @@ trait BaseService extends Logging {
 
   def buildRoute:Route
 
-  def start(configuration:Option[String], mappings:Option[String]):Unit = {
+  def start():Unit = {
 
     try {
       /*
        * Initialize the overall configuration
        */
-      ThingsConf.init(configuration)
+      ThingsConf.init()
       if (!ThingsConf.isInit) {
         throw new Exception(s"Loading configuration failed and service is not started.")
       }
       /*
        * Initialize the attribute mappings
        */
-      MappingsConf.init(mappings)
+      MappingsConf.init()
       if (!MappingsConf.isInit) {
         throw new Exception(s"Loading mappings failed and service is not started.")
       }
@@ -108,8 +108,7 @@ trait BaseService extends Logging {
     if (server.isEmpty) {
       system.terminate()
 
-      val now = new java.util.Date().toString
-      throw new Exception(s"[ERROR] $now - Service was not launched.")
+      throw new Exception(s"Service was not launched.")
 
     }
 

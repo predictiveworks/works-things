@@ -232,7 +232,8 @@ class OweaManager extends Logging {
            *
            *    CREATE RELATIONS
            */
-          tbAdmin.createRelations(datasource, tbAssetId, tbAssetName, tbDeviceIds)
+          tbAdmin.createRelations(
+            datasource, tbAssetId, tbAssetName, "ASSET", tbDeviceIds, "DEVICE")
           /*
            * Inform about successful creation of this
            * weather station
