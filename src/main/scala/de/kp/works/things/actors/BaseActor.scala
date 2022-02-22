@@ -35,6 +35,7 @@ import de.kp.works.things.logging.Logging
 import de.kp.works.things.tb.{TBAdmin, TBOptions, TBPoint}
 import org.thingsboard.server.common.data.Device
 
+import java.util.Calendar
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
@@ -255,7 +256,6 @@ abstract class BaseActor extends Actor with Logging {
          *
          */
         val tbLatest = tbAdmin.getTsLatest(tbDeviceId, tbKeys)
-        println(tbLatest)
         /*
          * This method flattens the results when a certain
          * sensor contains more than one attribute
@@ -303,18 +303,45 @@ abstract class BaseActor extends Actor with Logging {
     (timestamp, latestValues)
 
   }
-
+  /**
+   * __MOD__ The interface has been extended to also support
+   * user specific time interval for a certain time series.
+   *
+   * The default value = 30d and is automatically supported
+   * by `getTsHistorical`. All other values, 1d, 3d, 10d must
+   * be specified explicitly
+   */
   def getDeviceTs(
      tbAdmin:TBAdmin, tbDeviceId:String,
-     tbKeys:Seq[String], sensor:String):List[TBPoint] = {
+     tbKeys:Seq[String], sensor:String, interval:String="30d"):List[TBPoint] = {
 
+    val cal = Calendar.getInstance
+    interval match {
+      case "1d" =>
+        cal.add(Calendar.DAY_OF_MONTH, -1)
+
+      case "3d" =>
+        cal.add(Calendar.DAY_OF_MONTH, -3)
+
+      case "10d" =>
+        cal.add(Calendar.DAY_OF_MONTH, -10)
+
+      /*
+       * The default interval is a month = 30d
+       */
+      case _ =>
+        cal.add(Calendar.MONTH, -1)
+    }
+
+    val beginTs = cal.getTime.getTime
+    val stopTs = System.currentTimeMillis()
     /*
      * The timeseries contains all sensors (keys)
      * that are assigned to the specific devices
      */
     val tbValues = try {
 
-      val tbParams = Map.empty[String,String]
+      val tbParams = Map("startTs" -> s"$beginTs", "endTs" -> s"$stopTs")
       val tbTimeseries = tbAdmin.getTsHistorical(
         deviceId = tbDeviceId, keys = tbKeys, params = tbParams, limit = 10000)
 

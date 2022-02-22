@@ -121,9 +121,17 @@ class ThingsService extends BaseService {
      * to retrieve device specific real-time data
      * and publish to ThingsBoard
      */
-    //success = ThingsStartup.activeConsumers()
+    success = ThingsStartup.activeConsumers()
     if (!success) {
       throw new Exception(s"Activation of data consumers failed.")
+    }
+    /*
+     * STEP #4: Start the Slack Bot to inform about
+     * the measurements at 6AM and 6PM
+     */
+    success = ThingsStartup.startSlackBot()
+    if (!success) {
+      throw new Exception(s"Starting Slack Bot failed.")
     }
 
   }

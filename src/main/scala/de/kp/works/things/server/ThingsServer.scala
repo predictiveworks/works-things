@@ -19,6 +19,19 @@ package de.kp.works.things.server
  *
  */
 
+/**
+ * The [ThingsServer] is designed to connect to 3 different
+ * data sources, EU Air Quality service, OpenWeather and The
+ * Things Stack. The data are read either on a scheduled basis
+ * or on demand as MQTT listening.
+ *
+ * This approach can be extended to other (real-time) data
+ * sources as well like stock exchange rates.
+ *
+ * The current data destination or sink is the ThingsBoard
+ * MQTT broker (community edition) that persists received
+ * telemetry data in a Postgres database.
+ */
 object ThingsServer extends BaseServer {
 
   override var programName: String = "ThingsServer"

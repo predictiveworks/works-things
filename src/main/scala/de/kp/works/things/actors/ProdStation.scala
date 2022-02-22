@@ -66,11 +66,14 @@ class ProdStation extends BaseActor {
 
       /*
        * Retrieve room identifier from the provided
-       * request `room` name; this identifier must
-       * be used in a subsequent `detail` request.
+       * request `room` (identifier); this identifier
+       * must be used in a subsequent `detail` request.
+       *
+       * __MOD__ The request `room` parameter has been
+       * changed to its identifier
        */
       val tbAssetName = rooms
-        .filter(room => room.`type` == req.room && room.station == req.id)
+        .filter(room => room.id == req.room && room.station == req.id)
         .head.id
 
       /*
@@ -150,7 +153,7 @@ class ProdStation extends BaseActor {
 
         }
       }
-      println(output)
+
       mapper.writeValueAsString(output)
 
     } catch {

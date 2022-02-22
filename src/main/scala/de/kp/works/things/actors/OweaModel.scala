@@ -26,6 +26,11 @@ case class OweaDetailReq(
    */
   id: String,
   /*
+   * The time interval used to request telemetry data;
+   * supported values are 1d, 3d, 10d, and 30d
+   */
+  interval:String,
+  /*
    * The name of the sensor (co, co2, no, etc.)
    */
   sensor: String,

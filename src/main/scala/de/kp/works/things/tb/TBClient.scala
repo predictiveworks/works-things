@@ -31,6 +31,14 @@ import org.thingsboard.server.common.data.relation.EntityRelation
 
 import scala.collection.JavaConversions._
 
+/**
+ * [TBClient] is the base accessor to interact with the
+ * REST API of the ThingsBoard Community platform.
+ *
+ * This platform acts as a MQTT broker to receive telemetry
+ * data on the hand side, and a HTTP server to manage assets,
+ * and devices.
+ */
 trait TBClient extends HttpConnect with Logging {
 
   protected val mapper = new ObjectMapper()
@@ -43,7 +51,10 @@ trait TBClient extends HttpConnect with Logging {
 
   protected val username: String = adminCfg.getString("username")
   protected val userpass: String = adminCfg.getString("userpass")
-
+  /*
+   * The REST API to login & logout to ThingsBoard's
+   * HTTP server
+   */
   protected val loginUrl = "/api/auth/login"
   protected val logoutUrl = "/api/auth/logout"
   /*

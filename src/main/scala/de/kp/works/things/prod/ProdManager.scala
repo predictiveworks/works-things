@@ -32,7 +32,7 @@ import scala.collection.mutable
  * identifier, type and name, and also references
  * the superior station (assets)
  */
-case class ProdRoom(id:String, name:String, `type`:String, station:String)
+case class ProdRoom(id:String, station:String)
 
 case class ProdStation(id:String, name:String, lon:Double, lat:Double)
 
@@ -216,8 +216,10 @@ class ProdManager extends ProdBase with Logging {
 
           tbAsset.setName(tbRoomName)
           tbAsset.setType(s"$ROOM_NAME")
-
-          tbAsset.setLabel(s"$ROOM_NAME: ${room.name}")
+          /*
+           * __MOD__ The room label has been changed
+           */
+          tbAsset.setLabel(s"$ROOM_NAME: $tbRoomName")
           tbAsset.setCustomerId(tbCustomerId)
           /*
            * Additional info: description
@@ -247,11 +249,11 @@ class ProdManager extends ProdBase with Logging {
            * Inform about successful creation of this
            * production room
            */
-          info(s"Prod room `${room.name}` successfully created.")
+          info(s"Prod room `${room.id}` successfully created.")
 
         } catch {
           case t:Throwable =>
-            error(s"[Creating Prod room `${room.name}` failed: ${t.getLocalizedMessage}")
+            error(s"[Creating Prod room `${room.id}` failed: ${t.getLocalizedMessage}")
             success = false
         }
 

@@ -118,7 +118,10 @@ object ProdOptions {
     .toList
 
   }
-
+  /**
+   * __MOD__ The [ProdRoom] has been reduced to the room
+   * identifier and the respective station
+   */
   def getRooms:List[ProdRoom] = {
 
     val values = prodCfg.getList("rooms")
@@ -128,8 +131,6 @@ object ProdOptions {
         val room = configObject.toConfig
         ProdRoom(
           id      = room.getString("id"),
-          name    = room.getString("name"),
-          `type`  = room.getString("type"),
           station = room.getString("station")
         )
 

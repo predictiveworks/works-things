@@ -74,7 +74,7 @@ class ProdDetail extends BaseActor {
          * that are assigned to the specific devices
          */
         val tbValues =
-          getDeviceTs(tbAdmin, tbDeviceId, tbKeys, req.sensor)
+          getDeviceTs(tbAdmin, tbDeviceId, tbKeys, req.sensor, req.interval)
           /*
            * Transform time series into UI format
            */
@@ -98,7 +98,6 @@ class ProdDetail extends BaseActor {
         mockValues
       }
 
-      println(output)
       mapper.writeValueAsString(output)
 
     } catch {

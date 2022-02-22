@@ -83,45 +83,6 @@ class OweaStation extends BaseActor {
        *  ]
        * }
        */
-      val mockValues = List(
-        Map(
-          "device" -> "DEV.CLOU",
-          "values" -> List(
-            Map("name" -> "cloudiness", "value" -> 45))
-        ),
-        Map(
-          "device" -> "DEV.HUMD",
-          "values" -> List(
-            Map("name" -> "humidity", "value" -> 72))
-        ),
-        Map(
-          "device" -> "DEV.PRESS",
-          "values" -> List(
-            Map("name" -> "pressure", "value" -> 1013))
-        ),
-        Map(
-          "device" -> "DEV.TEMP",
-          "values" -> List(
-            Map("name" -> "temp",       "value" -> 3),
-            Map("name" -> "feels_like", "value" -> -1),
-            Map("name" -> "temp_min",   "value" -> -2),
-            Map("name" -> "temp_max",   "value" -> -7)
-          )
-        ),
-        Map(
-          "device" -> "DEV.VISB",
-          "values" -> List(
-            Map("name" -> "visibility", "value" -> 10000))
-        ),
-        Map(
-          "device" -> "DEV.WIND",
-          "values" -> List(
-            Map("name" -> "wind_speed", "value" -> 12),
-            Map("name" -> "wind_deg",   "value" -> 30),
-            Map("name" -> "wind_gust",  "value" -> 24)
-          )
-        )
-      )
 
       val output = Map("ts" -> timestamp, "values" -> latestValues)
       mapper.writeValueAsString(output)

@@ -183,7 +183,7 @@ class ProdImages extends ImageMaker with Logging {
        * The title is built from station and room
        * name
        */
-      val roomTitle = s"${room.station}: ${room.name}"
+      val roomTitle = s"${room.station}: ${room.id}"
       val roomCharts = mutable.ArrayBuffer.empty[XYChart]
       /*
        * Fill the respective room charts, which will

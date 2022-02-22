@@ -136,8 +136,6 @@ class TTNConsumer(tbDeviceName:String, tbDeviceActor: ActorRef) extends Logging 
        */
       val now = new java.util.Date()
       val messageObj = json.getAsJsonObject
-      println(s"----- message ${now.toString}-----")
-      println(messageObj)
 
       val decodedPayload = TTNRegistry.transform(messageObj)
       println(s"----- decoded ${now.toString} -----")

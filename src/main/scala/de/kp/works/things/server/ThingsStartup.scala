@@ -23,7 +23,7 @@ import de.kp.works.things.airq.{AirqManager, AirqMonitor}
 import de.kp.works.things.devices.{DeviceRegistry, RelationRegistry}
 import de.kp.works.things.logging.Logging
 import de.kp.works.things.owea.{OweaManager, OweaMonitor}
-import de.kp.works.things.prod.{ProdManager, ProdMonitor}
+import de.kp.works.things.prod.{ProdCharts, ProdManager, ProdMonitor}
 
 import scala.collection.mutable
 
@@ -123,6 +123,26 @@ object ThingsStartup extends Logging {
 
   }
 
+  def startSlackBot():Boolean = {
+
+    var success:Boolean = true
+
+    try {
+
+      val prodCharts = new ProdCharts()
+      prodCharts.start()
+
+      info(s"The Slack Bot is started successfully.")
+
+    } catch {
+      case t:Throwable =>
+        error(s"Starting Slack Bot failed with: ${t.getLocalizedMessage}")
+        success = false
+    }
+
+    success
+
+  }
   /**
    * This method is invoked during the startup
    * phase and creates pre-defined assets and

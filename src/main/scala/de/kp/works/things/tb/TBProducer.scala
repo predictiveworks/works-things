@@ -33,9 +33,16 @@ case class TBTimeseries(records:Seq[TBRecord])
 
 case class TBJob(deviceName:String, deviceSeries:TBTimeseries, actorStop:Boolean = true)
 /**
- * The [TBProducer] is responsible for writing MQTT
- * message that refer to a certain device to the
- * ThingsBoard server
+ * The [TBProducer] is responsible for publishing MQTT messages
+ * to the ThingsBoard MQTT broker that refer to a certain topic
+ * or device. The current implementation defines this producer
+ * as an actor that
+ *
+ * (1) connects, (2) publishes and (3) disconnects to the broker.
+ *
+ * Note, the current time behavior of the covered devices is
+ * sending in 10min (environment), 15min (weather), 30min (air
+ * quality) and 60min (CO2)
  */
 class TBProducer extends Actor with Logging {
 
