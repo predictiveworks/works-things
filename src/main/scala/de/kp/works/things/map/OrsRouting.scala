@@ -47,6 +47,9 @@ class OrsRouting extends HttpConnect with Logging {
   )
   /**
    * Access restrictions: 2.000 daily / 40 per minute
+   *
+   * NOTE: The coordinates provided must describe
+   * (lon,lat) points
    */
   def directions(coordinates: JsonArray, profile: String = "foot-walking"): List[OrsPoint] = {
 
@@ -72,22 +75,40 @@ class OrsRouting extends HttpConnect with Logging {
       warn(s"The ORS request does not return a valid JSON response.")
       return List.empty[OrsPoint]
     }
+
     /*
      * The result of the request is GeoJSON formatted. The current
      * implementation only extracts the geometry
+     *
+     * {
+     *    "type":"FeatureCollection",
+     *    "features":[
+     *      {
+     *        "bbox":[16.286224,48.194272,16.291814,48.196875],
+     *        "type":"Feature",
+     *        "properties":{
+     *          "segments":[{"distance":695.5,"duration":64.4,"steps":[{"distance":271.5,"duration":24.6,"type":11,"instruction":"Head south on Seckendorfstraße","name":"Seckendorfstraße","way_points":[0,10]},{"distance":424.0,"duration":39.8,"type":0,"instruction":"Turn left onto Linzer Straße","name":"Linzer Straße","way_points":[10,29]},{"distance":0.0,"duration":0.0,"type":10,"instruction":"Arrive at Linzer Straße, straight ahead","name":"-","way_points":[29,29]}]}],"summary":{"distance":695.5,"duration":64.4},"way_points":[0,29]},"geometry":{"coordinates":[[16.287095,48.196875],[16.287091,48.196866],[16.287085,48.19685],[16.287056,48.196781],[16.286725,48.196041],[16.28635,48.195004],[16.286236,48.194698],[16.286234,48.194638],[16.286232,48.194594],[16.286229,48.19457],[16.286224,48.194509],[16.28636,48.194524],[16.286811,48.194583],[16.286974,48.194619],[16.287206,48.194688],[16.287438,48.194705],[16.287647,48.194711],[16.287885,48.194714],[16.288081,48.19471],[16.289112,48.194682],[16.289284,48.194633],[16.289372,48.194616],[16.289872,48.194577],[16.290008,48.194567],[16.290204,48.194544],[16.290658,48.194475],[16.290852,48.194475],[16.291587,48.194313],[16.291809,48.194272],[16.291814,48.194272]],"type":"LineString"}}],"bbox":[16.286224,48.194272,16.291814,48.196875],"metadata":{"attribution":"openrouteservice.org | OpenStreetMap contributors","service":"routing","timestamp":1645720189629,"query":{"coordinates":[[16.28709377819291,48.1968750461956],[16.29181446608709,48.1942718144596]],"profile":"driving-car","format":"geojson"},"engine":{"version":"6.7.0","build_date":"2022-02-18T19:37:41Z","graph_date":"2022-02-15T01:18:04Z"}}}
+     *
      */
-    val geometryObj = response.getAsJsonObject
-      .get("geometry").getAsJsonObject
+    val features = response.getAsJsonObject
+      .get("features").getAsJsonArray
 
-    val coordsAry = geometryObj.get("coordinates")
-      .getAsJsonArray
+    val result = features.flatMap(feature => {
 
-    val result = coordsAry.map(coordAry => {
+      val geometryObj = feature.getAsJsonObject
+        .get("geometry").getAsJsonObject
 
-      val lon = coordAry.getAsJsonArray.get(0).getAsDouble
-      val lat = coordAry.getAsJsonArray.get(1).getAsDouble
+      val coordinates = geometryObj.get("coordinates")
+        .getAsJsonArray
 
-      OrsPoint(lat, lon)
+      coordinates.map(coordinate => {
+
+        val lon = coordinate.getAsJsonArray.get(0).getAsDouble
+        val lat = coordinate.getAsJsonArray.get(1).getAsDouble
+
+        OrsPoint(lat, lon)
+
+      }).toList
 
     }).toList
 
@@ -95,6 +116,12 @@ class OrsRouting extends HttpConnect with Logging {
 
   }
   /**
+   * Isochrones e.g. can be used to inform smartphone
+   * users about the reachability of a certain entity
+   * within a specific amount of time:
+   *
+   * "Can I reach this entity within 15 minutes?"
+   *
    * Access restrictions: 500 daily / 20 per minute
    *
    * `time` is defined in seconds: 900 = 15 minutes

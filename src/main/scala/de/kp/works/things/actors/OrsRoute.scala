@@ -20,6 +20,7 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
+import com.google.gson.{JsonArray, JsonObject}
 import de.kp.works.things.map.OrsPoint
 import de.kp.works.things.mock.GeoPoints
 
@@ -48,36 +49,28 @@ class OrsRoute extends BaseActor {
     }
 
     try {
+      /*
+       * __MOCK__ The code below retrieves a pre-built
+       * and computed route; the data were retrieved by
+       * requesting the `Open Route Service (Ors)`.
+       */
+      val coordinates = new JsonArray
+      GeoPoints.getCoordinates.foreach(coordinate => {
 
-      val mockCoords = GeoPoints.getCoordinates
+        val latlon = new JsonObject
+        latlon.addProperty("latitude", coordinate.lat)
+        latlon.addProperty("longitude", coordinate.lon)
 
-      var startIndex:Int = -1
-      var endIndex:Int   = -1
-
-      mockCoords.indices.foreach(index => {
-        val coord = mockCoords(index)
-
-        if (coord.lat == req.startLat && coord.lon == req.startLon)
-          startIndex = index
-
-        if (coord.lat == req.endLat && coord.lon == req.endLon)
-          endIndex = index
+        coordinates.add(latlon)
 
       })
-      println(startIndex)
-      println(endIndex)
-      var points = List.empty[OrsPoint]
 
-      if ((startIndex + 1 < mockCoords.length) && (endIndex + 1 < mockCoords.length))
-        points = mockCoords.slice(startIndex + 1, endIndex + 1)
 
-      println(points)
-      val output = mapper.writeValueAsString(points)
+      val output = coordinates.toString
       output
 
     } catch {
       case t:Throwable =>
-        t.printStackTrace()
         error(Messages.failedDetailReq(t))
         buildEmptyRoute
     }

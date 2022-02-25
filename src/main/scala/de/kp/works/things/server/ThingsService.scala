@@ -54,6 +54,12 @@ class ThingsService extends BaseService {
       /*
        * Geospatial (mobile) support
        */
+      ORS_ASSETS_ACTOR -> system.actorOf(
+        Props(new OrsAssets()), ORS_ASSETS_ACTOR),
+
+      ORS_BOUNDARY_ACTOR -> system.actorOf(
+        Props(new OrsBoundary()), ORS_BOUNDARY_ACTOR),
+
       ORS_POSITION_ACTOR -> system.actorOf(
         Props(new OrsPosition()), ORS_POSITION_ACTOR),
 

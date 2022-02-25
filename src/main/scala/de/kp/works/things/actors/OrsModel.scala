@@ -19,6 +19,32 @@ package de.kp.works.things.actors
  *
  */
 
+case class OrsAssetsReq(
+  /*
+   * The name of the administrative boundary, the
+   * assets are requested for
+   */
+  name:String,
+  /*
+   * The secret is used to restrict to authorized
+   * requests
+   */
+  secret:String
+)
+
+case class OrsBoundaryReq(
+  /*
+   * The name of the administrative boundary, the
+   * geospatial representation is requested for
+   */
+  name:String,
+  /*
+   * The secret is used to restrict to authorized
+   * requests
+   */
+  secret:String
+)
+
 case class OrsPositionReq(
   /*
    * The unique device identifier of the IoT device,

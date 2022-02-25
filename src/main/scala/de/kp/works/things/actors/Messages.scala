@@ -27,11 +27,20 @@ object Messages {
   def unauthorizedReq(): String =
     s"Unauthorized request detected."
 
+  def failedAssetsReq(t:Throwable):String =
+    s"Retrieval of assets within an administrative boundary failed with ${t.getLocalizedMessage}"
+
+  def failedBoundaryReq(t:Throwable):String =
+    s"Retrieval of administrative boundary failed with ${t.getLocalizedMessage}"
+
   def failedDetailReq(t:Throwable):String =
     s"Retrieval of sensor time series failed with ${t.getLocalizedMessage}"
 
   def failedDevicesReq(t:Throwable):String =
     s"Retrieval of devices failed with ${t.getLocalizedMessage}"
+
+  def failedPositionReq(t:Throwable):String =
+    s"Retrieval of geospatial position failed with ${t.getLocalizedMessage}"
 
   def failedStationReq(t:Throwable):String =
     s"Retrieval of latest station data failed with ${t.getLocalizedMessage}"

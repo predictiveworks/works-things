@@ -19,7 +19,6 @@ package de.kp.works.things.map
  *
  */
 
-
 import de.kp.works.things.conf.GeospatialConf
 
 object MapOptions {

@@ -41,8 +41,10 @@ object MobileRoutes {
    * of geospatial objects leveraging the Open
    * Routing Service (ORS).
    */
+  val ORS_ASSETS_ACTOR   = "ors_assets_actor"
+  val ORS_BOUNDARY_ACTOR = "ors_boundary_actor"
   val ORS_POSITION_ACTOR = "ors_position_actor"
-  val ORS_ROUTE_ACTOR = "ors_route_actor"
+  val ORS_ROUTE_ACTOR    = "ors_route_actor"
 
   val OWEA_DETAIL_ACTOR   = "owea_detail_actor"
   val OWEA_STATION_ACTOR  = "owea_station_actor"
@@ -81,6 +83,8 @@ class MobileRoutes(actors:Map[String, ActorRef])(implicit system: ActorSystem) {
     /*
      * Geospatial support
      */
+    getOrsAssets ~
+    getOrsBoundary ~
     getOrsPosition ~
     getOrsRoute ~
     /*
@@ -117,6 +121,10 @@ class MobileRoutes(actors:Map[String, ActorRef])(implicit system: ActorSystem) {
    * Routes that support mobile REST request to
    * geospatial related devices and stations
    */
+  private def getOrsAssets:Route = routePost("things/v1/mobile/ors/assets", actors(ORS_ASSETS_ACTOR))
+
+  private def getOrsBoundary:Route = routePost("things/v1/mobile/ors/boundary", actors(ORS_BOUNDARY_ACTOR))
+
   private def getOrsPosition:Route = routePost("things/v1/mobile/ors/position", actors(ORS_POSITION_ACTOR))
 
   private def getOrsRoute:Route = routePost("things/v1/mobile/ors/route", actors(ORS_ROUTE_ACTOR))

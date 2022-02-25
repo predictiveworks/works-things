@@ -173,6 +173,32 @@ abstract class BaseActor extends Actor with Logging {
 
   }
 
+  def buildEmptyAssets:String = {
+    new JsonArray().toString
+  }
+
+  /**
+   * A helper method to build the JSON response
+   * of an administrative boundary defined by its
+   * surrounding region and geospatial points
+   */
+  def buildEmptyBoundary:String = {
+
+    val emptyRegion = new JsonObject
+    emptyRegion.addProperty("latitude", 0)
+    emptyRegion.addProperty("longitude", 0)
+
+    emptyRegion.addProperty("latitudeDelta", 0)
+    emptyRegion.addProperty("longitudeDelta", 0)
+
+    val emptyBoundary = new JsonObject
+    emptyBoundary.add("region", emptyRegion)
+    emptyBoundary.add("coordinates", new JsonArray)
+
+    emptyBoundary.toString
+
+  }
+
   def buildEmptyDevices:String = {
     new JsonArray().toString
   }

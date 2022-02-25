@@ -20,10 +20,9 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
-import com.google.gson.{JsonArray, JsonObject, JsonParser}
-import de.kp.works.things.mock.GeoPoints
+import de.kp.works.things.map.OrsOSM
 
-class OrsPosition extends BaseActor {
+class OrsBoundary extends BaseActor {
 
   /**
    * __fault__resilient
@@ -34,43 +33,27 @@ class OrsPosition extends BaseActor {
     if (json == null) {
 
       warn(Messages.invalidJson())
-      return buildEmptyPosition
+      return buildEmptyBoundary
 
     }
 
-    val req = mapper.readValue(json.toString, classOf[OrsPositionReq])
+    val req = mapper.readValue(json.toString, classOf[OrsBoundaryReq])
     if (req.secret.isEmpty || req.secret != secret) {
 
       warn(Messages.unauthorizedReq())
-      return buildEmptyPosition
+      return buildEmptyBoundary
 
     }
 
     try {
-      /*
-       * The mock approach leverages a list of coordinates
-       * that have be pre-computed
-       */
-      val mockCoords = GeoPoints.getCoordinates
-      if (req.step < mockCoords.length) {
-
-        val position = mockCoords(req.step)
-        val output = Map(
-          "ts" -> System.currentTimeMillis, "step" -> req.step, "latlon" -> position
-        )
-
-        val result = mapper.writeValueAsString(output)
-        result
-
-      } else buildEmptyPosition
+      OrsOSM.loadBoundary(req.name)
 
     } catch {
       case t:Throwable =>
-        error(Messages.failedPositionReq(t))
-        buildEmptyPosition
+        error(Messages.failedBoundaryReq(t))
+        buildEmptyBoundary
     }
 
   }
 
 }
-

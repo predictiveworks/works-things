@@ -20,12 +20,14 @@ package de.kp.works.things.actors
  */
 
 import akka.http.scaladsl.model.HttpRequest
-import com.google.gson.{JsonArray, JsonObject, JsonParser}
-import de.kp.works.things.mock.GeoPoints
+import de.kp.works.things.map.OrsOSM
 
-class OrsPosition extends BaseActor {
+class OrsAssets extends BaseActor {
 
   /**
+   * This actor retrieves pre-built geospatial assets (nodes)
+   * by name like `vienna` recycling containers
+   *
    * __fault__resilient
    */
   override def execute(request: HttpRequest): String = {
@@ -34,43 +36,27 @@ class OrsPosition extends BaseActor {
     if (json == null) {
 
       warn(Messages.invalidJson())
-      return buildEmptyPosition
+      return buildEmptyAssets
 
     }
 
-    val req = mapper.readValue(json.toString, classOf[OrsPositionReq])
+    val req = mapper.readValue(json.toString, classOf[OrsAssetsReq])
     if (req.secret.isEmpty || req.secret != secret) {
 
       warn(Messages.unauthorizedReq())
-      return buildEmptyPosition
+      return buildEmptyAssets
 
     }
 
     try {
-      /*
-       * The mock approach leverages a list of coordinates
-       * that have be pre-computed
-       */
-      val mockCoords = GeoPoints.getCoordinates
-      if (req.step < mockCoords.length) {
-
-        val position = mockCoords(req.step)
-        val output = Map(
-          "ts" -> System.currentTimeMillis, "step" -> req.step, "latlon" -> position
-        )
-
-        val result = mapper.writeValueAsString(output)
-        result
-
-      } else buildEmptyPosition
+      OrsOSM.loadAssets(req.name)
 
     } catch {
       case t:Throwable =>
-        error(Messages.failedPositionReq(t))
-        buildEmptyPosition
+        error(Messages.failedAssetsReq(t))
+        buildEmptyAssets
     }
 
   }
 
 }
-
